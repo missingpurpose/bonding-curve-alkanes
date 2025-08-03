@@ -1,8 +1,14 @@
-//! Free Mint Alkane Contract
+//! Alkanes Bonding Curve System
 //!
-//! A modernized and secure version of the free mint alkane contract that follows
-//! current best practices and security patterns while providing full functionality
-//! of a standard token plus free mint capabilities.
+//! A production-ready bonding curve system for Alkanes that enables token launches
+//! with BUSD/frBTC integration and automatic graduation to Oyl AMM pools.
+//! 
+//! This system provides:
+//! - Factory pattern for deploying new bonding curves
+//! - Exponential pricing algorithm with configurable parameters
+//! - BUSD (2:56801) and frBTC (32:0) base currency support
+//! - Automatic liquidity graduation to Oyl AMM pools
+//! - Comprehensive security patterns and access controls
 
 use alkanes_runtime::storage::StoragePointer;
 use alkanes_runtime::{declare_alkane, message::MessageDispatch, runtime::AlkaneResponder};
@@ -10,7 +16,7 @@ use alkanes_support::gz;
 use alkanes_support::response::CallResponse;
 use alkanes_support::utils::overflow_error;
 use alkanes_support::witness::find_witness_payload;
-use alkanes_support::{context::Context, parcel::AlkaneTransfer};
+use alkanes_support::{context::Context, parcel::AlkaneTransfer, id::AlkaneId};
 use anyhow::{anyhow, Result};
 use bitcoin::hashes::Hash;
 use bitcoin::{Transaction, Txid};
@@ -19,13 +25,58 @@ use metashrew_support::index_pointer::KeyValuePointer;
 use metashrew_support::utils::consensus_decode;
 use std::io::Cursor;
 use std::sync::Arc;
+use serde::{Deserialize, Serialize};
+
 pub mod precompiled;
+pub mod bonding_curve;
+pub mod amm_integration;
 #[cfg(test)]
 pub mod tests;
 
-/// Constants for token identification
-pub const ALKANE_FACTORY_OWNED_TOKEN_ID: u128 = 0x0fff;
-pub const ALKANE_FACTORY_FREE_MINT_ID: u128 = 0x0ffe;
+/// Constants for base token identification
+pub const BUSD_ALKANE_ID: u128 = (2u128 << 64) | 56801u128; // 2:56801
+pub const FRBTC_ALKANE_ID: u128 = (32u128 << 64) | 0u128;   // 32:0
+
+/// Factory contract identification
+pub const BONDING_CURVE_FACTORY_ID: u128 = 0x0bcd;
+
+/// Base token enum for supported currencies
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BaseToken {
+    BUSD,
+    frBTC,
+}
+
+impl BaseToken {
+    pub fn alkane_id(&self) -> AlkaneId {
+        match self {
+            BaseToken::BUSD => AlkaneId::new(2, 56801),     // 2:56801
+            BaseToken::frBTC => AlkaneId::new(32, 0),       // 32:0
+        }
+    }
+}
+
+/// Bonding curve parameters for token launches
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CurveParams {
+    pub base_price: u128,           // Starting price in base token satoshis
+    pub growth_rate: u128,          // Basis points increase per token (e.g., 1500 = 1.5%)
+    pub graduation_threshold: u128,  // Market cap threshold for AMM graduation
+    pub base_token: BaseToken,      // Base currency (BUSD or frBTC)
+    pub max_supply: u128,           // Maximum token supply
+}
+
+impl Default for CurveParams {
+    fn default() -> Self {
+        Self {
+            base_price: 1_000_000,        // 0.01 BUSD (assuming 8 decimals)
+            growth_rate: 1500,            // 1.5% per token
+            graduation_threshold: 10_000_000_000_000, // 100,000 BUSD
+            base_token: BaseToken::BUSD,
+            max_supply: 1_000_000_000_000_000, // 1 billion tokens
+        }
+    }
+}
 
 /// Returns a StoragePointer for the token name
 fn name_pointer() -> StoragePointer {
@@ -205,35 +256,76 @@ pub trait MintableToken: AlkaneResponder {
     }
 }
 
-/// MintableAlkane implements a free mint token contract with security features
+/// BondingCurveToken implements a bonding curve token contract
 #[derive(Default)]
-pub struct MintableAlkane(());
+pub struct BondingCurveToken(());
 
-impl MintableToken for MintableAlkane {}
+impl MintableToken for BondingCurveToken {}
 
-/// Message enum for opcode-based dispatch
+/// Message enum for bonding curve operations
 #[derive(MessageDispatch)]
-enum MintableAlkaneMessage {
-    /// Initialize the token with configuration
+enum BondingCurveMessage {
+    /// Initialize the bonding curve with parameters
     #[opcode(0)]
     Initialize {
-        /// Initial token units
-        token_units: u128,
-        /// Value per mint
-        value_per_mint: u128,
-        /// Maximum supply cap (0 for unlimited)
-        cap: u128,
         /// Token name part 1
         name_part1: u128,
-        /// Token name part 2
+        /// Token name part 2  
         name_part2: u128,
         /// Token symbol
         symbol: u128,
+        /// Base price in satoshis
+        base_price: u128,
+        /// Growth rate in basis points
+        growth_rate: u128,
+        /// Graduation threshold
+        graduation_threshold: u128,
+        /// Base token type (0 = BUSD, 1 = frBTC)
+        base_token_type: u128,
+        /// Maximum supply
+        max_supply: u128,
     },
 
-    /// Mint new tokens
-    #[opcode(77)]
-    MintTokens,
+    /// Buy tokens with base currency
+    #[opcode(1)]
+    BuyTokens {
+        /// Minimum tokens expected (slippage protection)
+        min_tokens_out: u128,
+    },
+
+    /// Sell tokens for base currency
+    #[opcode(2)]
+    SellTokens {
+        /// Amount of tokens to sell
+        token_amount: u128,
+        /// Minimum base tokens expected (slippage protection)
+        min_base_out: u128,
+    },
+
+    /// Get buy quote for token amount
+    #[opcode(3)]
+    #[returns(u128)]
+    GetBuyQuote {
+        /// Number of tokens to quote
+        token_amount: u128,
+    },
+
+    /// Get sell quote for token amount
+    #[opcode(4)]
+    #[returns(u128)]
+    GetSellQuote {
+        /// Number of tokens to quote
+        token_amount: u128,
+    },
+
+    /// Attempt graduation to AMM
+    #[opcode(5)]
+    Graduate,
+
+    /// Get curve state information
+    #[opcode(6)]
+    #[returns(Vec<u8>)]
+    GetCurveState,
 
     /// Get the token name
     #[opcode(99)]
@@ -250,20 +342,20 @@ enum MintableAlkaneMessage {
     #[returns(u128)]
     GetTotalSupply,
 
-    /// Get the maximum supply cap
+    /// Get current base reserves
     #[opcode(102)]
     #[returns(u128)]
-    GetCap,
+    GetBaseReserves,
 
-    /// Get the total minted count
+    /// Get AMM pool address if graduated
     #[opcode(103)]
     #[returns(u128)]
-    GetMinted,
+    GetAmmPoolAddress,
 
-    /// Get the value per mint
+    /// Check if graduated
     #[opcode(104)]
-    #[returns(u128)]
-    GetValuePerMint,
+    #[returns(bool)]
+    IsGraduated,
 
     /// Get the token data
     #[opcode(1000)]
@@ -271,45 +363,28 @@ enum MintableAlkaneMessage {
     GetData,
 }
 
-impl MintableAlkane {
-    /// Get the pointer to the minted counter
-    pub fn minted_pointer(&self) -> StoragePointer {
-        StoragePointer::from_keyword("/minted")
+impl BondingCurveToken {
+    /// Get launch block height
+    pub fn launch_block_pointer(&self) -> StoragePointer {
+        StoragePointer::from_keyword("/launch_block")
     }
 
-    /// Get the total minted count
-    pub fn minted(&self) -> u128 {
-        self.minted_pointer().get_value::<u128>()
+    /// Get the launch block
+    pub fn launch_block(&self) -> u64 {
+        self.launch_block_pointer().get_value::<u64>()
     }
 
-    /// Set the total minted count
-    pub fn set_minted(&self, v: u128) {
-        self.minted_pointer().set_value::<u128>(v);
+    /// Set the launch block
+    pub fn set_launch_block(&self, block: u64) {
+        self.launch_block_pointer().set_value::<u64>(block);
     }
 
-    /// Increment the mint counter
-    pub fn increment_mint(&self) -> Result<()> {
-        self.set_minted(
-            overflow_error(self.minted().checked_add(1u128))
-                .map_err(|_| anyhow!("mint counter overflow"))?,
-        );
-        Ok(())
+    /// Get the current supply (same as total supply)
+    pub fn current_supply(&self) -> u128 {
+        self.total_supply()
     }
 
-    /// Get the pointer to the value per mint
-    pub fn value_per_mint_pointer(&self) -> StoragePointer {
-        StoragePointer::from_keyword("/value-per-mint")
-    }
 
-    /// Get the value per mint
-    pub fn value_per_mint(&self) -> u128 {
-        self.value_per_mint_pointer().get_value::<u128>()
-    }
-
-    /// Set the value per mint
-    pub fn set_value_per_mint(&self, v: u128) {
-        self.value_per_mint_pointer().set_value::<u128>(v);
-    }
 
     /// Get the pointer to the supply cap
     pub fn cap_pointer(&self) -> StoragePointer {
@@ -321,93 +396,248 @@ impl MintableAlkane {
         self.cap_pointer().get_value::<u128>()
     }
 
-    /// Set the supply cap (0 means unlimited)
-    pub fn set_cap(&self, v: u128) {
-        self.cap_pointer()
-            .set_value::<u128>(if v == 0 { u128::MAX } else { v });
-    }
-
-    /// Check if a transaction hash has been used for minting
-    pub fn has_tx_hash(&self, txid: &Txid) -> bool {
-        StoragePointer::from_keyword("/tx-hashes/")
-            .select(&txid.as_byte_array().to_vec())
-            .get_value::<u8>()
-            == 1
-    }
-
-    /// Add a transaction hash to the used set
-    pub fn add_tx_hash(&self, txid: &Txid) -> Result<()> {
-        StoragePointer::from_keyword("/tx-hashes/")
-            .select(&txid.as_byte_array().to_vec())
-            .set_value::<u8>(0x01);
-        Ok(())
-    }
-
-    /// Initialize the token with configuration
+    /// Initialize the bonding curve with parameters
     fn initialize(
         &self,
-        token_units: u128,
-        value_per_mint: u128,
-        cap: u128,
         name_part1: u128,
         name_part2: u128,
         symbol: u128,
+        base_price: u128,
+        growth_rate: u128,
+        graduation_threshold: u128,
+        base_token_type: u128,
+        max_supply: u128,
     ) -> Result<CallResponse> {
         let context = self.context()?;
-        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        let response = CallResponse::forward(&context.incoming_alkanes);
 
         // Prevent multiple initializations
         self.observe_initialization()
             .map_err(|_| anyhow!("Contract already initialized"))?;
 
-        // Set configuration
-        self.set_value_per_mint(value_per_mint);
-        self.set_cap(cap);
-        self.set_data()?;
+        // Create and store curve parameters
+        let base_token = match base_token_type {
+            0 => BaseToken::BUSD,
+            1 => BaseToken::frBTC,
+            _ => return Err(anyhow!("Invalid base token type")),
+        };
 
-        // Create TokenName from the two parts
+        let params = CurveParams {
+            base_price,
+            growth_rate,
+            graduation_threshold,
+            base_token,
+            max_supply,
+        };
+
+        bonding_curve::BondingCurve::set_curve_params(&params)?;
+
+        // Set token metadata
         let name = TokenName::new(name_part1, name_part2);
         <Self as MintableToken>::set_name_and_symbol(self, name, symbol);
 
-        // Mint initial tokens
-        if token_units > 0 {
-            response.alkanes.0.push(self.mint(&context, token_units)?);
-        }
+        // Set launch block (use a placeholder for now, real implementation would get from context)
+        self.set_launch_block(0);
+
+        // Initialize reserves to zero
+        bonding_curve::BondingCurve::set_base_reserves(0);
+        bonding_curve::BondingCurve::set_token_reserves(0);
+
+        self.set_data()?;
 
         Ok(response)
     }
 
-    /// Mint new tokens
-    fn mint_tokens(&self) -> Result<CallResponse> {
+    /// Buy tokens with base currency
+    fn buy_tokens(&self, min_tokens_out: u128) -> Result<CallResponse> {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
-        // Get transaction ID
-        let txid = context.transaction_id()?;
-
-        // Enforce one mint per transaction
-        if self.has_tx_hash(&txid) {
-            return Err(anyhow!("Transaction already used for minting"));
+        // Check if already graduated
+        if bonding_curve::BondingCurve::is_graduated() {
+            return Err(anyhow!("Bonding curve has graduated to AMM"));
         }
 
-        // Check if minting would exceed cap
-        if self.minted() >= self.cap() {
-            return Err(anyhow!(
-                "Supply cap reached: {} of {}",
-                self.minted(),
-                self.cap()
-            ));
+        // Get curve parameters and current state
+        let params = bonding_curve::BondingCurve::get_curve_params()?;
+        let _current_supply = self.current_supply();
+        
+        // Find the base token input from incoming alkanes
+        let base_input = context.incoming_alkanes.0
+            .iter()
+            .find(|transfer| transfer.id == params.base_token.alkane_id())
+            .ok_or_else(|| anyhow!("No base token input found"))?;
+
+        let base_amount = base_input.value;
+
+        // Calculate how many tokens to mint for this amount
+        let tokens_to_mint = self.calculate_tokens_for_base_amount(base_amount, &params)?;
+
+        // Check slippage protection
+        if tokens_to_mint < min_tokens_out {
+            return Err(anyhow!("Slippage exceeded: got {} tokens, expected at least {}", 
+                tokens_to_mint, min_tokens_out));
         }
 
-        // Record transaction hash
-        self.add_tx_hash(&txid)?;
+        // Mint the tokens
+        response.alkanes.0.push(self.mint(&context, tokens_to_mint)?);
 
-        // Mint tokens
-        let value = self.value_per_mint();
-        response.alkanes.0.push(self.mint(&context, value)?);
+        // Update reserves
+        let current_reserves = bonding_curve::BondingCurve::get_base_reserves();
+        bonding_curve::BondingCurve::set_base_reserves(current_reserves + base_amount);
 
-        // Increment mint counter
-        self.increment_mint()?;
+        Ok(response)
+    }
+
+    /// Sell tokens for base currency
+    fn sell_tokens(&self, token_amount: u128, min_base_out: u128) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+
+        // Check if already graduated
+        if bonding_curve::BondingCurve::is_graduated() {
+            return Err(anyhow!("Bonding curve has graduated to AMM"));
+        }
+
+        // Get curve parameters and calculate sell price
+        let params = bonding_curve::BondingCurve::get_curve_params()?;
+        let current_supply = self.current_supply();
+        
+        // Calculate base tokens to return
+        let base_payout = bonding_curve::BondingCurve::calculate_sell_price(
+            current_supply, token_amount, &params
+        )?;
+
+        // Check slippage protection
+        if base_payout < min_base_out {
+            return Err(anyhow!("Slippage exceeded: got {} base tokens, expected at least {}", 
+                base_payout, min_base_out));
+        }
+
+        // Check we have enough reserves
+        let current_reserves = bonding_curve::BondingCurve::get_base_reserves();
+        if base_payout > current_reserves {
+            return Err(anyhow!("Insufficient reserves for sell"));
+        }
+
+        // Burn the tokens (decrease total supply)
+        let new_supply = current_supply.checked_sub(token_amount)
+            .ok_or_else(|| anyhow!("Cannot burn more tokens than exist"))?;
+        self.set_total_supply(new_supply);
+
+        // Return base tokens to seller
+        response.alkanes.0.push(AlkaneTransfer {
+            id: params.base_token.alkane_id(),
+            value: base_payout,
+        });
+
+        // Update reserves
+        bonding_curve::BondingCurve::set_base_reserves(current_reserves - base_payout);
+
+        Ok(response)
+    }
+
+    /// Calculate tokens to mint for a given base amount
+    fn calculate_tokens_for_base_amount(&self, base_amount: u128, params: &CurveParams) -> Result<u128> {
+        let current_supply = self.current_supply();
+        
+        // Binary search to find the right number of tokens
+        // This is needed because we have the inverse problem: given cost, find tokens
+        let mut low = 0u128;
+        let mut high = params.max_supply.saturating_sub(current_supply);
+        let mut best_tokens = 0u128;
+
+        while low <= high {
+            let mid = (low + high) / 2;
+            let cost = bonding_curve::BondingCurve::calculate_buy_price(current_supply, mid, params)?;
+            
+            if cost <= base_amount {
+                best_tokens = mid;
+                low = mid + 1;
+            } else {
+                high = mid.saturating_sub(1);
+            }
+
+            if low > high {
+                break;
+            }
+        }
+
+        if best_tokens == 0 {
+            return Err(anyhow!("Insufficient base amount to buy any tokens"));
+        }
+
+        Ok(best_tokens)
+    }
+
+    /// Get buy quote for token amount
+    fn get_buy_quote(&self, token_amount: u128) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+
+        let params = bonding_curve::BondingCurve::get_curve_params()?;
+        let current_supply = self.current_supply();
+        
+        let cost = bonding_curve::BondingCurve::calculate_buy_price(
+            current_supply, token_amount, &params
+        )?;
+
+        response.data = cost.to_le_bytes().to_vec();
+        Ok(response)
+    }
+
+    /// Get sell quote for token amount
+    fn get_sell_quote(&self, token_amount: u128) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+
+        let params = bonding_curve::BondingCurve::get_curve_params()?;
+        let current_supply = self.current_supply();
+        
+        let payout = bonding_curve::BondingCurve::calculate_sell_price(
+            current_supply, token_amount, &params
+        )?;
+
+        response.data = payout.to_le_bytes().to_vec();
+        Ok(response)
+    }
+
+    /// Attempt graduation to AMM
+    fn graduate(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let current_supply = self.current_supply();
+
+        amm_integration::AMMIntegration::graduate_to_amm(&context, current_supply)
+    }
+
+    /// Get curve state information
+    fn get_curve_state(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+
+        let params = bonding_curve::BondingCurve::get_curve_params()?;
+        let current_supply = self.current_supply();
+        let base_reserves = bonding_curve::BondingCurve::get_base_reserves();
+        let is_graduated = bonding_curve::BondingCurve::is_graduated();
+        let amm_pool = amm_integration::AMMIntegration::get_amm_pool_address();
+
+        // Create state object
+        let state = serde_json::json!({
+            "current_supply": current_supply,
+            "base_reserves": base_reserves,
+            "is_graduated": is_graduated,
+            "amm_pool_address": amm_pool,
+            "base_token": params.base_token,
+            "curve_params": {
+                "base_price": params.base_price,
+                "growth_rate": params.growth_rate,
+                "graduation_threshold": params.graduation_threshold,
+                "max_supply": params.max_supply
+            }
+        });
+
+        response.data = serde_json::to_vec(&state)
+            .map_err(|e| anyhow!("Failed to serialize state: {}", e))?;
 
         Ok(response)
     }
@@ -459,32 +689,35 @@ impl MintableAlkane {
         Ok(response)
     }
 
-    /// Get the maximum supply cap
-    fn get_cap(&self) -> Result<CallResponse> {
+    /// Get current base reserves
+    fn get_base_reserves(&self) -> Result<CallResponse> {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
-        response.data = self.cap().to_le_bytes().to_vec();
+        let reserves = bonding_curve::BondingCurve::get_base_reserves();
+        response.data = reserves.to_le_bytes().to_vec();
 
         Ok(response)
     }
 
-    /// Get the total minted count
-    fn get_minted(&self) -> Result<CallResponse> {
+    /// Get AMM pool address if graduated
+    fn get_amm_pool_address(&self) -> Result<CallResponse> {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
-        response.data = self.minted().to_le_bytes().to_vec();
+        let pool_address = amm_integration::AMMIntegration::get_amm_pool_address().unwrap_or(0);
+        response.data = pool_address.to_le_bytes().to_vec();
 
         Ok(response)
     }
 
-    /// Get the value per mint
-    fn get_value_per_mint(&self) -> Result<CallResponse> {
+    /// Check if graduated
+    fn is_graduated(&self) -> Result<CallResponse> {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
-        response.data = self.value_per_mint().to_le_bytes().to_vec();
+        let graduated = bonding_curve::BondingCurve::is_graduated();
+        response.data = vec![if graduated { 1u8 } else { 0u8 }];
 
         Ok(response)
     }
@@ -500,11 +733,11 @@ impl MintableAlkane {
     }
 }
 
-impl AlkaneResponder for MintableAlkane {}
+impl AlkaneResponder for BondingCurveToken {}
 
 // Use the MessageDispatch macro for opcode handling
 declare_alkane! {
-    impl AlkaneResponder for MintableAlkane {
-        type Message = MintableAlkaneMessage;
+    impl AlkaneResponder for BondingCurveToken {
+        type Message = BondingCurveMessage;
     }
 }

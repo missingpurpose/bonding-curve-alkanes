@@ -1,0 +1,10 @@
+/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system/target/wasm32-unknown-unknown/release/deps/secp256k1_sys-dc6d43fa6daed906.d: /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/lib.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/macros.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/types.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/recovery.rs
+
+/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system/target/wasm32-unknown-unknown/release/deps/libsecp256k1_sys-dc6d43fa6daed906.rlib: /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/lib.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/macros.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/types.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/recovery.rs
+
+/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system/target/wasm32-unknown-unknown/release/deps/libsecp256k1_sys-dc6d43fa6daed906.rmeta: /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/lib.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/macros.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/types.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/recovery.rs
+
+/Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/lib.rs:
+/Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/macros.rs:
+/Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/types.rs:
+/Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/secp256k1-sys-0.10.1/src/recovery.rs:
