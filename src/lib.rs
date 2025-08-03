@@ -18,8 +18,8 @@ use alkanes_support::utils::overflow_error;
 use alkanes_support::witness::find_witness_payload;
 use alkanes_support::{context::Context, parcel::AlkaneTransfer, id::AlkaneId};
 use anyhow::{anyhow, Result};
-use bitcoin::hashes::Hash;
-use bitcoin::{Transaction, Txid};
+
+use bitcoin::Transaction;
 use metashrew_support::compat::to_arraybuffer_layout;
 use metashrew_support::index_pointer::KeyValuePointer;
 use metashrew_support::utils::consensus_decode;
@@ -44,14 +44,14 @@ pub const BONDING_CURVE_FACTORY_ID: u128 = 0x0bcd;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BaseToken {
     BUSD,
-    frBTC,
+    FrBtc,
 }
 
 impl BaseToken {
     pub fn alkane_id(&self) -> AlkaneId {
         match self {
             BaseToken::BUSD => AlkaneId::new(2, 56801),     // 2:56801
-            BaseToken::frBTC => AlkaneId::new(32, 0),       // 32:0
+            BaseToken::FrBtc => AlkaneId::new(32, 0),       // 32:0
         }
     }
 }
@@ -139,32 +139,7 @@ impl AlkaneResponder for ContextHandle {}
 
 pub const CONTEXT: ContextHandle = ContextHandle(());
 
-/// Extension trait for Context to add transaction_id method
-trait ContextExt {
-    /// Get the transaction ID from the context
-    fn transaction_id(&self) -> Result<Txid>;
-}
 
-#[cfg(test)]
-impl ContextExt for Context {
-    fn transaction_id(&self) -> Result<Txid> {
-        // Test implementation with all zeros
-        Ok(Txid::from_slice(&[0; 32]).unwrap_or_else(|_| {
-            // This should never happen with a valid-length slice
-            panic!("Failed to create zero Txid")
-        }))
-    }
-}
-
-#[cfg(not(test))]
-impl ContextExt for Context {
-    fn transaction_id(&self) -> Result<Txid> {
-        Ok(
-            consensus_decode::<Transaction>(&mut std::io::Cursor::new(CONTEXT.transaction()))?
-                .compute_txid(),
-        )
-    }
-}
 
 /// MintableToken trait provides common token functionality
 pub trait MintableToken: AlkaneResponder {
@@ -256,11 +231,11 @@ pub trait MintableToken: AlkaneResponder {
     }
 }
 
-/// BondingCurveToken implements a bonding curve token contract
+/// BondingCurve implements a bonding curve token contract
 #[derive(Default)]
-pub struct BondingCurveToken(());
+pub struct BondingCurve(());
 
-impl MintableToken for BondingCurveToken {}
+impl MintableToken for BondingCurve {}
 
 /// Message enum for bonding curve operations
 #[derive(MessageDispatch)]
@@ -363,7 +338,7 @@ enum BondingCurveMessage {
     GetData,
 }
 
-impl BondingCurveToken {
+impl BondingCurve {
     /// Get launch block height
     pub fn launch_block_pointer(&self) -> StoragePointer {
         StoragePointer::from_keyword("/launch_block")
@@ -418,7 +393,7 @@ impl BondingCurveToken {
         // Create and store curve parameters
         let base_token = match base_token_type {
             0 => BaseToken::BUSD,
-            1 => BaseToken::frBTC,
+            1 => BaseToken::FrBtc,
             _ => return Err(anyhow!("Invalid base token type")),
         };
 
@@ -430,7 +405,7 @@ impl BondingCurveToken {
             max_supply,
         };
 
-        bonding_curve::BondingCurve::set_curve_params(&params)?;
+        bonding_curve::CurveCalculator::set_curve_params(&params)?;
 
         // Set token metadata
         let name = TokenName::new(name_part1, name_part2);
@@ -440,26 +415,27 @@ impl BondingCurveToken {
         self.set_launch_block(0);
 
         // Initialize reserves to zero
-        bonding_curve::BondingCurve::set_base_reserves(0);
-        bonding_curve::BondingCurve::set_token_reserves(0);
+        bonding_curve::CurveCalculator::set_base_reserves(0);
+        bonding_curve::CurveCalculator::set_token_reserves(0);
 
         self.set_data()?;
 
         Ok(response)
     }
 
+    
     /// Buy tokens with base currency
     fn buy_tokens(&self, min_tokens_out: u128) -> Result<CallResponse> {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
         // Check if already graduated
-        if bonding_curve::BondingCurve::is_graduated() {
+        if bonding_curve::CurveCalculator::is_graduated() {
             return Err(anyhow!("Bonding curve has graduated to AMM"));
         }
 
         // Get curve parameters and current state
-        let params = bonding_curve::BondingCurve::get_curve_params()?;
+        let params = bonding_curve::CurveCalculator::get_curve_params()?;
         let _current_supply = self.current_supply();
         
         // Find the base token input from incoming alkanes
@@ -483,8 +459,8 @@ impl BondingCurveToken {
         response.alkanes.0.push(self.mint(&context, tokens_to_mint)?);
 
         // Update reserves
-        let current_reserves = bonding_curve::BondingCurve::get_base_reserves();
-        bonding_curve::BondingCurve::set_base_reserves(current_reserves + base_amount);
+        let current_reserves = bonding_curve::CurveCalculator::get_base_reserves();
+        bonding_curve::CurveCalculator::set_base_reserves(current_reserves + base_amount);
 
         Ok(response)
     }
@@ -495,16 +471,16 @@ impl BondingCurveToken {
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
         // Check if already graduated
-        if bonding_curve::BondingCurve::is_graduated() {
+        if bonding_curve::CurveCalculator::is_graduated() {
             return Err(anyhow!("Bonding curve has graduated to AMM"));
         }
 
         // Get curve parameters and calculate sell price
-        let params = bonding_curve::BondingCurve::get_curve_params()?;
+        let params = bonding_curve::CurveCalculator::get_curve_params()?;
         let current_supply = self.current_supply();
         
         // Calculate base tokens to return
-        let base_payout = bonding_curve::BondingCurve::calculate_sell_price(
+        let base_payout = bonding_curve::CurveCalculator::calculate_sell_price(
             current_supply, token_amount, &params
         )?;
 
@@ -515,7 +491,7 @@ impl BondingCurveToken {
         }
 
         // Check we have enough reserves
-        let current_reserves = bonding_curve::BondingCurve::get_base_reserves();
+        let current_reserves = bonding_curve::CurveCalculator::get_base_reserves();
         if base_payout > current_reserves {
             return Err(anyhow!("Insufficient reserves for sell"));
         }
@@ -532,7 +508,7 @@ impl BondingCurveToken {
         });
 
         // Update reserves
-        bonding_curve::BondingCurve::set_base_reserves(current_reserves - base_payout);
+        bonding_curve::CurveCalculator::set_base_reserves(current_reserves - base_payout);
 
         Ok(response)
     }
@@ -549,7 +525,7 @@ impl BondingCurveToken {
 
         while low <= high {
             let mid = (low + high) / 2;
-            let cost = bonding_curve::BondingCurve::calculate_buy_price(current_supply, mid, params)?;
+            let cost = bonding_curve::CurveCalculator::calculate_buy_price(current_supply, mid, params)?;
             
             if cost <= base_amount {
                 best_tokens = mid;
@@ -575,10 +551,10 @@ impl BondingCurveToken {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
-        let params = bonding_curve::BondingCurve::get_curve_params()?;
+        let params = bonding_curve::CurveCalculator::get_curve_params()?;
         let current_supply = self.current_supply();
         
-        let cost = bonding_curve::BondingCurve::calculate_buy_price(
+        let cost = bonding_curve::CurveCalculator::calculate_buy_price(
             current_supply, token_amount, &params
         )?;
 
@@ -591,10 +567,10 @@ impl BondingCurveToken {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
-        let params = bonding_curve::BondingCurve::get_curve_params()?;
+        let params = bonding_curve::CurveCalculator::get_curve_params()?;
         let current_supply = self.current_supply();
         
-        let payout = bonding_curve::BondingCurve::calculate_sell_price(
+        let payout = bonding_curve::CurveCalculator::calculate_sell_price(
             current_supply, token_amount, &params
         )?;
 
@@ -615,10 +591,10 @@ impl BondingCurveToken {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
-        let params = bonding_curve::BondingCurve::get_curve_params()?;
+        let params = bonding_curve::CurveCalculator::get_curve_params()?;
         let current_supply = self.current_supply();
-        let base_reserves = bonding_curve::BondingCurve::get_base_reserves();
-        let is_graduated = bonding_curve::BondingCurve::is_graduated();
+        let base_reserves = bonding_curve::CurveCalculator::get_base_reserves();
+        let is_graduated = bonding_curve::CurveCalculator::is_graduated();
         let amm_pool = amm_integration::AMMIntegration::get_amm_pool_address();
 
         // Create state object
@@ -642,22 +618,7 @@ impl BondingCurveToken {
         Ok(response)
     }
 
-    /// Set the token name and symbol
-    fn set_name_and_symbol(
-        &self,
-        name_part1: u128,
-        name_part2: u128,
-        symbol: u128,
-    ) -> Result<CallResponse> {
-        let context = self.context()?;
-        let response = CallResponse::forward(&context.incoming_alkanes);
 
-        // Create TokenName from the two parts
-        let name = TokenName::new(name_part1, name_part2);
-        <Self as MintableToken>::set_name_and_symbol(self, name, symbol);
-
-        Ok(response)
-    }
 
     /// Get the token name
     fn get_name(&self) -> Result<CallResponse> {
@@ -694,7 +655,7 @@ impl BondingCurveToken {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
-        let reserves = bonding_curve::BondingCurve::get_base_reserves();
+        let reserves = bonding_curve::CurveCalculator::get_base_reserves();
         response.data = reserves.to_le_bytes().to_vec();
 
         Ok(response)
@@ -716,7 +677,7 @@ impl BondingCurveToken {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
-        let graduated = bonding_curve::BondingCurve::is_graduated();
+        let graduated = bonding_curve::CurveCalculator::is_graduated();
         response.data = vec![if graduated { 1u8 } else { 0u8 }];
 
         Ok(response)
@@ -733,11 +694,11 @@ impl BondingCurveToken {
     }
 }
 
-impl AlkaneResponder for BondingCurveToken {}
+impl AlkaneResponder for BondingCurve {}
 
 // Use the MessageDispatch macro for opcode handling
 declare_alkane! {
-    impl AlkaneResponder for BondingCurveToken {
+    impl AlkaneResponder for BondingCurve {
         type Message = BondingCurveMessage;
     }
 }

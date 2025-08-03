@@ -7,13 +7,13 @@
 //! - Transfer bonding curve reserves to AMM
 //! - Handle LP token distribution
 
-use crate::{BaseToken, CurveParams, bonding_curve::BondingCurve};
+use crate::{BaseToken, CurveParams, bonding_curve::CurveCalculator};
 use alkanes_runtime::storage::StoragePointer;
-use alkanes_support::{context::Context, parcel::AlkaneTransfer};
+use alkanes_support::context::Context;
 use alkanes_support::response::CallResponse;
 use anyhow::{anyhow, Result};
 use metashrew_support::index_pointer::KeyValuePointer;
-use std::sync::Arc;
+
 
 /// AMM integration handler
 pub struct AMMIntegration;
@@ -25,16 +25,16 @@ impl AMMIntegration {
         token_supply: u128,
     ) -> Result<CallResponse> {
         // Check if already graduated
-        if BondingCurve::is_graduated() {
+        if CurveCalculator::is_graduated() {
             return Err(anyhow!("Bonding curve has already graduated"));
         }
 
         // Get curve parameters and reserves
-        let params = BondingCurve::get_curve_params()?;
-        let base_reserves = BondingCurve::get_base_reserves();
+        let params = CurveCalculator::get_curve_params()?;
+        let base_reserves = CurveCalculator::get_base_reserves();
 
         // Verify graduation criteria
-        if !BondingCurve::check_graduation_criteria(token_supply, base_reserves, &params) {
+        if !CurveCalculator::check_graduation_criteria(token_supply, base_reserves, &params) {
             return Err(anyhow!("Graduation criteria not met"));
         }
 
@@ -54,7 +54,7 @@ impl AMMIntegration {
         )?;
 
         // Mark as graduated
-        BondingCurve::set_graduated();
+        CurveCalculator::set_graduated();
 
         // Store pool information
         Self::set_amm_pool_address(pool_address);
@@ -78,7 +78,7 @@ impl AMMIntegration {
         let token_liquidity = token_supply * token_liquidity_percentage / 100;
 
                  // Calculate corresponding base token amount using current price
-        let current_price = crate::bonding_curve::BondingCurve::price_at_supply(token_supply, params)
+        let current_price = crate::bonding_curve::CurveCalculator::price_at_supply(token_supply, params)
             .unwrap_or(params.base_price);
         
         let base_liquidity_needed = token_liquidity * current_price / 1_000_000_000; // Adjust for decimals
@@ -123,7 +123,7 @@ impl AMMIntegration {
         // Simple hash-like generation for demo
         let base_block = match base_token {
             BaseToken::BUSD => 2u128,
-            BaseToken::frBTC => 32u128,
+            BaseToken::FrBtc => 32u128,
         };
         let combined = base_block
             .wrapping_add(token_liquidity)

@@ -42,12 +42,12 @@ fn build_alkane(wasm_str: &str, features: Vec<&'static str>) -> Result<()> {
 
 fn main() {
     // Guard against recursive execution
-    if std::env::var("FREE_MINT_BUILD_IN_PROGRESS").is_ok() {
+    if std::env::var("BONDING_CURVE_BUILD_IN_PROGRESS").is_ok() {
         println!("Build script already running, skipping to prevent recursion");
         return;
     }
     // Set flag to indicate build is in progress
-    std::env::set_var("FREE_MINT_BUILD_IN_PROGRESS", "1");
+    std::env::set_var("BONDING_CURVE_BUILD_IN_PROGRESS", "1");
     let env_var = env::var_os("OUT_DIR").unwrap();
     let base_dir = Path::new(&env_var)
         .parent()
@@ -85,7 +85,7 @@ fn main() {
     // Use a separate target directory specifically for the WASM build
     // to avoid triggering the main build process again
     build_alkane(wasm_str, vec![]).unwrap();
-    let mod_name = "free_mint".to_owned();
+    let mod_name = "bonding_curve_system".to_owned();
     eprintln!(
         "write: {}",
         write_dir

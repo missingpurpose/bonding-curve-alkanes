@@ -6,7 +6,7 @@
 //! - Base token integration (BUSD/frBTC)
 //! - Reserve management and graduation criteria
 
-use crate::{BaseToken, CurveParams};
+use crate::CurveParams;
 use alkanes_runtime::storage::StoragePointer;
 use alkanes_support::utils::overflow_error;
 use anyhow::{anyhow, Result};
@@ -14,9 +14,9 @@ use metashrew_support::index_pointer::KeyValuePointer;
 use std::sync::Arc;
 
 /// Bonding curve state management
-pub struct BondingCurve;
+pub struct CurveCalculator;
 
-impl BondingCurve {
+impl CurveCalculator {
     /// Calculate the buy price for a given number of tokens
     /// Uses exponential bonding curve: price = base_price * (1 + growth_rate/10000)^supply
     pub fn calculate_buy_price(
