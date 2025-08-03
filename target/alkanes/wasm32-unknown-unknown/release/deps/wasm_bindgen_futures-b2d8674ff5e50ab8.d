@@ -1,0 +1,9 @@
+/Volumes/btc-node/everything-alkanes/external-contracts/free-mint-master copy/target/alkanes/wasm32-unknown-unknown/release/deps/wasm_bindgen_futures-b2d8674ff5e50ab8.d: /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-futures-0.4.50/src/lib.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-futures-0.4.50/src/queue.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-futures-0.4.50/src/task/singlethread.rs
+
+/Volumes/btc-node/everything-alkanes/external-contracts/free-mint-master copy/target/alkanes/wasm32-unknown-unknown/release/deps/libwasm_bindgen_futures-b2d8674ff5e50ab8.rlib: /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-futures-0.4.50/src/lib.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-futures-0.4.50/src/queue.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-futures-0.4.50/src/task/singlethread.rs
+
+/Volumes/btc-node/everything-alkanes/external-contracts/free-mint-master copy/target/alkanes/wasm32-unknown-unknown/release/deps/libwasm_bindgen_futures-b2d8674ff5e50ab8.rmeta: /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-futures-0.4.50/src/lib.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-futures-0.4.50/src/queue.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-futures-0.4.50/src/task/singlethread.rs
+
+/Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-futures-0.4.50/src/lib.rs:
+/Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-futures-0.4.50/src/queue.rs:
+/Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wasm-bindgen-futures-0.4.50/src/task/singlethread.rs:
