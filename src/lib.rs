@@ -259,6 +259,8 @@ enum BondingCurveMessage {
         base_token_type: u128,
         /// Maximum supply
         max_supply: u128,
+        /// LP distribution strategy (0=FullBurn, 1=CommunityRewards, 2=CreatorAllocation, 3=DAOGovernance)
+        lp_distribution_strategy: u128,
     },
 
     /// Buy tokens with base currency
@@ -354,6 +356,21 @@ impl BondingCurve {
         self.launch_block_pointer().set_value::<u64>(block);
     }
 
+    /// Get the pointer to LP distribution strategy
+    pub fn lp_distribution_strategy_pointer(&self) -> StoragePointer {
+        StoragePointer::from_keyword("/lp-distribution-strategy")
+    }
+
+    /// Get LP distribution strategy
+    pub fn lp_distribution_strategy(&self) -> u128 {
+        self.lp_distribution_strategy_pointer().get_value::<u128>()
+    }
+
+    /// Set LP distribution strategy
+    pub fn set_lp_distribution_strategy(&self, strategy: u128) {
+        self.lp_distribution_strategy_pointer().set_value::<u128>(strategy);
+    }
+
     /// Get the current supply (same as total supply)
     pub fn current_supply(&self) -> u128 {
         self.total_supply()
@@ -382,6 +399,7 @@ impl BondingCurve {
         graduation_threshold: u128,
         base_token_type: u128,
         max_supply: u128,
+        lp_distribution_strategy: u128,
     ) -> Result<CallResponse> {
         let context = self.context()?;
         let response = CallResponse::forward(&context.incoming_alkanes);
@@ -390,12 +408,16 @@ impl BondingCurve {
         self.observe_initialization()
             .map_err(|_| anyhow!("Contract already initialized"))?;
 
-        // Create and store curve parameters
+        // Validate parameters
         let base_token = match base_token_type {
             0 => BaseToken::BUSD,
             1 => BaseToken::FrBtc,
             _ => return Err(anyhow!("Invalid base token type")),
         };
+
+        if lp_distribution_strategy > 3 {
+            return Err(anyhow!("Invalid LP distribution strategy (0-3)"));
+        }
 
         let params = CurveParams {
             base_price,
@@ -413,6 +435,9 @@ impl BondingCurve {
 
         // Set launch block (use a placeholder for now, real implementation would get from context)
         self.set_launch_block(0);
+
+        // Store LP distribution strategy
+        self.set_lp_distribution_strategy(lp_distribution_strategy);
 
         // Initialize reserves to zero
         bonding_curve::CurveCalculator::set_base_reserves(0);

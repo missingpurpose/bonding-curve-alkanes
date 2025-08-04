@@ -68,8 +68,8 @@ Users can launch new tokens with complete customization:
 - **Growth Rate**: 0.1% to 10% price increase per token
 
 #### **Step 2: Initial Parameters**
-- **Starting Price**: 0.00001 BTC (1,000 sats) equivalent
-- **Initial Market Cap**: ~$0.01 USD (ultra-low entry)
+- **Starting Price**: 0.00004 BTC (4,000 sats) equivalent  
+- **Initial Market Cap**: ~$5,000 USD (competitive with Solana launchpads)
 - **Minimum Buy**: 0.0001 BTC equivalent  
 - **Maximum Buy**: 10% of remaining supply per transaction
 
@@ -113,8 +113,8 @@ Example:
 ### 🎓 Graduation to AMM
 
 #### **Graduation Thresholds**
-- **Market Cap Threshold**: 1 BTC ($43,000 USD equivalent)
-- **Liquidity Threshold**: 0.5 BTC in reserves
+- **Market Cap Threshold**: $69,000 USD (0.6 BTC equivalent at current prices)
+- **Liquidity Threshold**: $35,000 USD in reserves (0.3 BTC equivalent)
 - **Token Distribution**: Minimum 100 unique holders
 - **Time Lock**: Minimum 24 hours since launch
 
@@ -125,8 +125,38 @@ Example:
 4. **LP Token Distribution**: 
    - 80% burned (permanent liquidity)
    - 20% distributed to top 10 holders
-5. **Contract Lock**: Bonding curve disabled, redirects to AMM
-6. **Price Discovery**: Market-driven pricing on AMM
+5. **LP Token Distribution**: Choose from multiple strategies (see below)
+6. **Contract Lock**: Bonding curve disabled, redirects to AMM
+7. **Price Discovery**: Market-driven pricing on AMM
+
+#### **LP Token Distribution Strategies**
+When a bonding curve graduates, LP tokens are created representing ownership of the AMM pool liquidity. Several distribution strategies are possible:
+
+**Strategy A: Full Burn (Permanent Liquidity)**
+- 100% of LP tokens are burned/locked forever
+- Creates permanent liquidity that can never be withdrawn
+- Maximum price stability for token holders
+- Most decentralized approach
+
+**Strategy B: Community Rewards**
+- 80% burned for permanent liquidity
+- 20% distributed to top token holders as rewards
+- Incentivizes early adoption and holding
+- Balances permanence with community benefits
+
+**Strategy C: Creator Allocation**
+- 90% burned for permanent liquidity  
+- 10% to token creator as launch reward
+- Incentivizes quality token launches
+- Creator can stake or sell LP tokens
+
+**Strategy D: DAO Governance**
+- 80% burned for permanent liquidity
+- 20% to governance contract for community decisions
+- Enables future protocol upgrades and treasury
+- Most flexible for long-term evolution
+
+*The system should support configurable LP distribution chosen at token launch.*
 
 #### **Post-Graduation Trading**
 - **AMM Pool**: Token/BUSD or Token/frBTC pairs
@@ -246,7 +276,7 @@ fn distribute_lp_tokens(
 
 - [ ] All mock functions replaced with real Oyl implementations
 - [ ] Successful pool creation for both BUSD and frBTC pairs
-- [ ] Correct LP token distribution (80% burn, 20% to holders)
+- [ ] Configurable LP token distribution (multiple strategies supported)
 - [ ] Atomic graduation process (no partial failures)
 - [ ] Clean integration with existing bonding curve logic
 - [ ] Comprehensive test coverage for all scenarios

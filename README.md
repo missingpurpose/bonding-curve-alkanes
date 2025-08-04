@@ -52,9 +52,9 @@ const tokenParams = {
   name_part1: "MyAwesome", // First part of token name
   name_part2: "Token",     // Second part of token name  
   symbol: "MAT",           // Token symbol
-  base_price: 1000,        // Starting price in sats (0.00001 BTC)
+  base_price: 4000,        // Starting price in sats (0.00004 BTC, ~$5k mcap)
   growth_rate: 1500,       // 1.5% price increase per token
-  graduation_threshold: 100000000, // 1 BTC market cap
+  graduation_threshold: 69000, // $69k USD graduation threshold
   base_token_type: 0,      // 0 = BUSD, 1 = frBTC
   max_supply: 1000000000   // 1 billion max tokens
 };
