@@ -31,13 +31,8 @@ const LP_STRATEGY_COMMUNITY: u128 = 1;
 const LP_STRATEGY_CREATOR: u128 = 2;
 const LP_STRATEGY_DAO: u128 = 3;
 
-// Oyl Factory opcodes
-const FACTORY_CREATE_POOL: u128 = 1;
-const FACTORY_GET_POOL: u128 = 2;
-
-// Oyl Pool opcodes  
-const POOL_ADD_LIQUIDITY: u128 = 1;
-const POOL_GET_DETAILS: u128 = 2;
+// Oyl Factory and Pool opcodes will be replaced with real SDK calls
+// See: https://docs.oyl.io/developer for integration details
 
 /// AMM integration handler
 pub struct AMMIntegration;

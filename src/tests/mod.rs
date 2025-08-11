@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alkanes_runtime::test_utils::*;
-    use alkanes_support::test_utils::*;
+    use alkanes_runtime::runtime::Context;
+    use alkanes_support::response::CallResponse;
     use anyhow::Result;
 
     // Helper to create a test token contract

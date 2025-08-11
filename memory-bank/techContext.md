@@ -1,107 +1,182 @@
 # Technical Context
 
-## Technologies Used
+## Core Technologies
 
-### Core Technologies
-- **Rust** - Primary programming language
-- **WebAssembly (WASM)** - Compilation target for the contract
-- **Alkanes Framework** - Smart contract framework for token implementation
-- **MessageDispatch** - Macro for opcode-based message dispatching
+### Alkanes Framework
+- Smart contract platform
+- WASM compilation
+- Storage management
+- Message dispatch
 
-### Dependencies
-- **alkanes-support** - Core support library for alkane contracts
-- **alkanes-runtime** - Runtime support for alkane execution
-- **metashrew-support** - Support library for metashrew compatibility
-- **protorune-support** - Support for protorune protocol
-- **alkane-factory-support** - Factory pattern support for token creation
-- **ordinals** - Ordinals protocol integration
-- **anyhow** - Error handling library
-- **bitcoin** - Bitcoin protocol library
-- **serde** - Serialization/deserialization framework
-- **serde_json** - JSON support for serde
+### Rust Language
+- Memory safety
+- Zero-cost abstractions
+- Strong type system
+- Rich ecosystem
+
+### WebAssembly (WASM)
+- Contract compilation target
+- Deterministic execution
+- Efficient runtime
+- Small binary size
+
+## Dependencies
+
+### Core Dependencies
+- `alkanes-runtime`: Contract runtime
+- `alkanes-support`: Support utilities
+- `metashrew-support`: Protocol support
+- `anyhow`: Error handling
+- `serde`: Serialization
+
+### Development Dependencies
+- `wasm-bindgen-test`: WASM testing
+- `alkanes-test-utils`: Test helpers
+- `protorune`: Protocol tools
+- `hex_lit`: Hex utilities
+
+## Contract Architecture
+
+### Factory Contract (309KB)
+- Token deployment
+- Registry management
+- Fee collection
+- Spam prevention
+
+### Token Contract (323KB)
+- Bonding curve mechanics
+- State management
+- AMM graduation
+- Base currency support
+
+### AMM Integration
+- Pool creation
+- Liquidity migration
+- LP distribution
+- Trading mechanics
 
 ## Development Setup
 
 ### Project Structure
 ```
-free-mint/
-├── Cargo.toml           - Project manifest
-├── memory-bank/         - Documentation and context
-├── reference/           - Reference implementations
-│   └── owned.rs         - Reference owned token implementation
-└── src/                 - Source code
-    ├── constants.rs     - Constant definitions
-    ├── factory.rs       - Factory implementation
-    └── lib.rs           - Main contract implementation with MessageDispatch
+bonding-curve-system/
+├── src/
+│   ├── lib.rs           # Token contract
+│   ├── bonding_curve.rs # Pricing engine
+│   └── amm_integration.rs # AMM framework
+└── target/wasm32-unknown-unknown/release/
+    └── bonding_curve_system.wasm
+
+bonding-curve-factory/
+├── src/
+│   └── lib.rs          # Factory logic
+└── target/wasm32-unknown-unknown/release/
+    └── factory.wasm
 ```
 
 ### Build Configuration
-The project is configured as both a cdylib (for WebAssembly compilation) and rlib (for Rust library usage):
-
 ```toml
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
 ```
 
 ## Technical Constraints
 
-### Compatibility Requirements
-- Must be compatible with the MintableToken trait in the factory module
-- Must follow the owned token opcode format for consistency
-- Must support proper initialization sequence with authentication
-- Must maintain backward compatibility with existing systems
+### Compatibility
+- Alkanes runtime compatibility
+- WASM size optimization
+- Base token integration
+- AMM protocol support
 
-### Security Requirements
-- Must use proper initialization guard via observe_initialization()
-- Must validate all numeric operations for overflow
-- Must ensure transaction-bound mint limit is enforced cryptographically
-- Must validate cap constraints before any mint operation
-- Must prevent transaction replay attacks
+### Security
+- CEI pattern implementation
+- Overflow protection
+- Access controls
+- State validation
 
-### Performance Considerations
-- Transaction hash storage must be efficient for large-scale usage
-- Serialization/deserialization operations should be optimized
-- Storage operations should be optimized to minimize resource usage
-- Numeric operations must be checked for overflow to prevent vulnerabilities
-- String operations use efficient encoding/decoding methods
+### Performance
+- Gas optimization
+- Storage efficiency
+- Binary size
+- Runtime speed
 
 ## Integration Points
 
 ### Factory Integration
-The contract implements the MintableToken trait to ensure compatibility with the factory module:
-```rust
-impl MintableToken for MintableAlkane {}
+- Token deployment
+- Registry updates
+- Fee collection
+- Event emission
+
+### AMM Integration
+- Pool creation
+- Liquidity migration
+- LP distribution
+- Trading mechanics
+
+### Frontend Integration
+- Contract interaction
+- Event handling
+- State updates
+- User interface
+
+## Development Workflow
+
+### Local Development
+```bash
+# Build contracts
+cargo build --target wasm32-unknown-unknown --release
+
+# Run tests
+cargo test
 ```
 
-### Message Dispatch
-The contract uses the MessageDispatch derive macro for opcode handling:
-```rust
-#[derive(MessageDispatch)]
-enum MintableAlkaneMessage {
-    #[opcode(0)]
-    Initialize { /* ... */ },
-    
-    // Other operations...
-}
+### Testnet Deployment
+```bash
+# Deploy factory
+alkanes deploy --wasm factory.wasm --network testnet
+
+# Deploy token
+alkanes deploy --wasm token.wasm --network testnet
 ```
 
-### Opcode Interface
-The contract exposes a standardized opcode interface for external interaction:
-- Standard operations (0, 77, 88, 99-101, 1000)
-- Free mint specific operations (102-104)
-- All operations have comprehensive documentation
+## Monitoring & Maintenance
 
-### Storage Interface
-The contract uses StoragePointer for persistent state management:
-- Key-value storage for token properties
-- Structured data storage for complex objects
-- Transaction hash storage using HashSet and serde_json
+### Contract Monitoring
+- State inspection
+- Event tracking
+- Error logging
+- Performance metrics
 
-## Deployment Considerations
-- The contract is compiled to WebAssembly for deployment
-- Initialization must be performed with proper parameters:
-  - Token units
-  - Value per mint
-  - Supply cap (0 for unlimited)
-  - Name and symbol
-- Transaction hash storage should be considered for long-term usage patterns
+### Maintenance Tasks
+- Security updates
+- Bug fixes
+- Feature additions
+- Documentation updates
+
+## Documentation
+
+### Technical Docs
+- Architecture overview
+- Contract interaction
+- Security patterns
+- Integration guide
+
+### API Documentation
+- Opcode reference
+- Function signatures
+- Error codes
+- Event types
+
+### Deployment Guide
+- Build instructions
+- Deployment steps
+- Configuration
+- Verification
