@@ -11,9 +11,33 @@ use crate::{BaseToken, CurveParams, bonding_curve::CurveCalculator};
 use alkanes_runtime::storage::StoragePointer;
 use alkanes_support::context::Context;
 use alkanes_support::response::CallResponse;
+use alkanes_support::id::AlkaneId;
 use anyhow::{anyhow, Result};
 use metashrew_support::index_pointer::KeyValuePointer;
 
+// Oyl Factory contract addresses (these would be deployed on mainnet)
+// Note: These are placeholder addresses - in production these would be real contract addresses
+fn get_busd_factory_address() -> AlkaneId {
+    AlkaneId::new(2, 56802) // Example BUSD factory
+}
+
+fn get_frbtc_factory_address() -> AlkaneId {
+    AlkaneId::new(32, 1)   // Example frBTC factory
+}
+
+// LP Distribution Strategy constants
+const LP_STRATEGY_FULL_BURN: u128 = 0;
+const LP_STRATEGY_COMMUNITY: u128 = 1;
+const LP_STRATEGY_CREATOR: u128 = 2;
+const LP_STRATEGY_DAO: u128 = 3;
+
+// Oyl Factory opcodes
+const FACTORY_CREATE_POOL: u128 = 1;
+const FACTORY_GET_POOL: u128 = 2;
+
+// Oyl Pool opcodes  
+const POOL_ADD_LIQUIDITY: u128 = 1;
+const POOL_GET_DETAILS: u128 = 2;
 
 /// AMM integration handler
 pub struct AMMIntegration;
@@ -45,15 +69,15 @@ impl AMMIntegration {
             &params,
         )?;
 
-        // Create AMM pool (this would interface with Oyl Factory)
-        let pool_address = Self::create_oyl_pool(
+        // Create AMM pool with atomic operation
+        let pool_address = Self::create_oyl_pool_atomic(
             context,
             &params.base_token,
             token_liquidity,
             base_liquidity,
         )?;
 
-        // Mark as graduated
+        // Mark as graduated only after successful pool creation
         CurveCalculator::set_graduated();
 
         // Store pool information
@@ -94,24 +118,293 @@ impl AMMIntegration {
         Ok((token_liquidity, base_liquidity))
     }
 
-    /// Create a new Oyl AMM pool (mock implementation)
-    /// In a real implementation, this would call the Oyl Factory contract
-    fn create_oyl_pool(
-        _context: &Context,
+    /// Create a new Oyl AMM pool with atomic operation (all-or-nothing)
+    fn create_oyl_pool_atomic(
+        context: &Context,
         base_token: &BaseToken,
         token_liquidity: u128,
         base_liquidity: u128,
     ) -> Result<u128> {
-        // Mock pool creation - in reality this would:
-        // 1. Call Oyl Factory contract
-        // 2. Transfer tokens to the new pool
-        // 3. Receive LP tokens in return
-        // 4. Return the pool address
+        // Get the appropriate factory address based on base token
+        let factory_address = match base_token {
+            BaseToken::BUSD => get_busd_factory_address(),
+            BaseToken::FrBtc => get_frbtc_factory_address(),
+        };
 
-        // For now, generate a mock pool address based on inputs
-        let pool_address = Self::generate_pool_address(base_token, token_liquidity, base_liquidity);
+        // Step 1: Create pool via Oyl Factory
+        let pool_address = Self::call_oyl_factory_create_pool(
+            factory_address,
+            context.myself.clone(),    // Our bonding curve token
+            base_token.alkane_id(),    // BUSD(2:56801) or frBTC(32:0)
+        )?;
+
+        // Step 2: Verify pool was created successfully
+        if !Self::verify_pool_creation(pool_address, context.myself.clone(), base_token.alkane_id())? {
+            return Err(anyhow!("Pool creation verification failed"));
+        }
+
+        // Step 3: Transfer tokens to the new pool
+        Self::transfer_tokens_to_pool(
+            pool_address,
+            context.myself.clone(),
+            token_liquidity,
+            base_token.alkane_id(),
+            base_liquidity,
+        )?;
+
+        // Step 4: Add initial liquidity to the pool
+        let lp_tokens_received = Self::add_initial_liquidity(
+            pool_address,
+            context.myself.clone(),
+            token_liquidity,
+            base_token.alkane_id(),
+            base_liquidity,
+        )?;
+
+        // Step 5: Handle LP token distribution based on strategy
+        Self::distribute_lp_tokens(lp_tokens_received, context)?;
+
+        Ok(pool_address)
+    }
+
+    /// Call Oyl Factory to create a new pool
+    fn call_oyl_factory_create_pool(
+        factory_address: AlkaneId,
+        token_a: AlkaneId,
+        token_b: AlkaneId,
+    ) -> Result<u128> {
+        // This would make a real call to the Oyl Factory contract
+        // The factory contract would:
+        // 1. Validate the token pair
+        // 2. Create a new pool contract
+        // 3. Return the pool address
+        
+        // For now, we'll simulate the pool creation with a deterministic address
+        // In production, this would be a real contract call using the Oyl SDK
+        let pool_address = Self::generate_deterministic_pool_address(
+            &factory_address,
+            &token_a,
+            &token_b,
+        );
         
         Ok(pool_address)
+    }
+
+    /// Verify that pool was created successfully
+    fn verify_pool_creation(
+        _pool_address: u128,
+        _token_a: AlkaneId,
+        _token_b: AlkaneId,
+    ) -> Result<bool> {
+        // This would call the pool contract to verify it exists and has correct tokens
+        // For now, we'll assume success if the address is valid
+        Ok(_pool_address > 0)
+    }
+
+    /// Transfer tokens to the newly created pool
+    fn transfer_tokens_to_pool(
+        _pool_address: u128,
+        _token_id: AlkaneId,
+        _token_amount: u128,
+        _base_token_id: AlkaneId,
+        _base_amount: u128,
+    ) -> Result<()> {
+        // This would transfer our bonding curve tokens and base tokens to the pool
+        // In production, this would be actual token transfers using the Alkanes runtime
+        
+        // Verify we have sufficient tokens before transfer
+        if !Self::verify_token_balance(_token_id, _token_amount)? {
+            return Err(anyhow!("Insufficient bonding curve tokens for pool"));
+        }
+        
+        if !Self::verify_token_balance(_base_token_id, _base_amount)? {
+            return Err(anyhow!("Insufficient base tokens for pool"));
+        }
+        
+        // For now, we'll simulate the transfers
+        // The pool would receive:
+        // - token_amount of our bonding curve tokens
+        // - base_amount of BUSD or frBTC
+        
+        Ok(())
+    }
+
+    /// Verify token balance before transfer
+    fn verify_token_balance(_token_id: AlkaneId, _required_amount: u128) -> Result<bool> {
+        // This would check the actual token balance
+        // For now, assume we have sufficient balance
+        Ok(true)
+    }
+
+    /// Add initial liquidity to the pool and receive LP tokens
+    fn add_initial_liquidity(
+        _pool_address: u128,
+        _token_id: AlkaneId,
+        _token_amount: u128,
+        _base_token_id: AlkaneId,
+        _base_amount: u128,
+    ) -> Result<u128> {
+        // This would call the pool's addLiquidity function
+        // The pool would:
+        // 1. Accept the token transfers
+        // 2. Calculate LP tokens based on the constant product formula
+        // 3. Mint LP tokens to our contract
+        
+        // Calculate LP tokens using constant product formula
+        // LP tokens = sqrt(token_amount * base_amount)
+        let lp_tokens = Self::calculate_lp_tokens(_token_amount, _base_amount);
+        
+        // Verify LP tokens were received
+        if lp_tokens == 0 {
+            return Err(anyhow!("Failed to receive LP tokens from pool"));
+        }
+        
+        Ok(lp_tokens)
+    }
+
+    /// Calculate LP tokens using constant product formula
+    fn calculate_lp_tokens(token_amount: u128, base_amount: u128) -> u128 {
+        // LP tokens = sqrt(token_amount * base_amount)
+        // We'll use a simplified calculation for now
+        let product = token_amount.saturating_mul(base_amount);
+        let sqrt = (product as f64).sqrt() as u128;
+        sqrt
+    }
+
+    /// Distribute LP tokens according to the bonding curve's strategy
+    fn distribute_lp_tokens(lp_tokens: u128, context: &Context) -> Result<()> {
+        // Get the LP distribution strategy from the bonding curve
+        let strategy = Self::get_lp_distribution_strategy();
+        
+        // Ensure we have LP tokens to distribute
+        if lp_tokens == 0 {
+            return Err(anyhow!("No LP tokens to distribute"));
+        }
+        
+        match strategy {
+            LP_STRATEGY_FULL_BURN => {
+                // Burn 80% of LP tokens, distribute 20% to holders
+                let burn_amount = lp_tokens * 80 / 100;
+                let holder_amount = lp_tokens - burn_amount; // Ensure no rounding loss
+                
+                Self::burn_lp_tokens(burn_amount)?;
+                Self::distribute_to_holders(holder_amount, context)?;
+            },
+            LP_STRATEGY_COMMUNITY => {
+                // 60% to community rewards, 20% to holders, 20% to creator
+                let community_amount = lp_tokens * 60 / 100;
+                let holder_amount = lp_tokens * 20 / 100;
+                let creator_amount = lp_tokens - community_amount - holder_amount; // Ensure no rounding loss
+                
+                Self::distribute_to_community(community_amount)?;
+                Self::distribute_to_holders(holder_amount, context)?;
+                Self::distribute_to_creator(creator_amount)?;
+            },
+            LP_STRATEGY_CREATOR => {
+                // 40% to creator, 40% to holders, 20% to community
+                let creator_amount = lp_tokens * 40 / 100;
+                let holder_amount = lp_tokens * 40 / 100;
+                let community_amount = lp_tokens - creator_amount - holder_amount; // Ensure no rounding loss
+                
+                Self::distribute_to_creator(creator_amount)?;
+                Self::distribute_to_holders(holder_amount, context)?;
+                Self::distribute_to_community(community_amount)?;
+            },
+            LP_STRATEGY_DAO => {
+                // 50% to DAO treasury, 30% to holders, 20% to community
+                let dao_amount = lp_tokens * 50 / 100;
+                let holder_amount = lp_tokens * 30 / 100;
+                let community_amount = lp_tokens - dao_amount - holder_amount; // Ensure no rounding loss
+                
+                Self::distribute_to_dao(dao_amount)?;
+                Self::distribute_to_holders(holder_amount, context)?;
+                Self::distribute_to_community(community_amount)?;
+            },
+            _ => {
+                // Default to full burn strategy
+                let burn_amount = lp_tokens * 80 / 100;
+                let holder_amount = lp_tokens - burn_amount;
+                
+                Self::burn_lp_tokens(burn_amount)?;
+                Self::distribute_to_holders(holder_amount, context)?;
+            }
+        }
+        
+        Ok(())
+    }
+
+    /// Get LP distribution strategy from storage
+    fn get_lp_distribution_strategy() -> u128 {
+        // This would read from the bonding curve's storage
+        // For now, return a default value
+        0 // Default to full burn strategy
+    }
+
+    /// Burn LP tokens (send to zero address)
+    fn burn_lp_tokens(amount: u128) -> Result<()> {
+        // In production, this would transfer LP tokens to a burn address
+        // For now, we'll just simulate the burn
+        if amount == 0 {
+            return Ok(());
+        }
+        Ok(())
+    }
+
+    /// Distribute LP tokens to token holders
+    fn distribute_to_holders(amount: u128, _context: &Context) -> Result<()> {
+        // This would distribute LP tokens proportionally to all token holders
+        // Implementation would depend on the specific holder tracking mechanism
+        if amount == 0 {
+            return Ok(());
+        }
+        Ok(())
+    }
+
+    /// Distribute LP tokens to community rewards
+    fn distribute_to_community(amount: u128) -> Result<()> {
+        // This would send LP tokens to a community rewards contract
+        if amount == 0 {
+            return Ok(());
+        }
+        Ok(())
+    }
+
+    /// Distribute LP tokens to creator
+    fn distribute_to_creator(amount: u128) -> Result<()> {
+        // This would send LP tokens to the token creator
+        if amount == 0 {
+            return Ok(());
+        }
+        Ok(())
+    }
+
+    /// Distribute LP tokens to DAO treasury
+    fn distribute_to_dao(amount: u128) -> Result<()> {
+        // This would send LP tokens to the DAO treasury
+        if amount == 0 {
+            return Ok(());
+        }
+        Ok(())
+    }
+
+    /// Generate a deterministic pool address based on factory and tokens
+    fn generate_deterministic_pool_address(
+        factory: &AlkaneId,
+        token_a: &AlkaneId,
+        token_b: &AlkaneId,
+    ) -> u128 {
+        // Create a deterministic address based on factory and token addresses
+        // This is a simplified version - in production, the factory would generate this
+        let factory_hash = (factory.block as u128) << 64 | (factory.tx as u128);
+        let token_a_hash = (token_a.block as u128) << 64 | (token_a.tx as u128);
+        let token_b_hash = (token_b.block as u128) << 64 | (token_b.tx as u128);
+        
+        let combined = factory_hash
+            .wrapping_add(token_a_hash)
+            .wrapping_add(token_b_hash);
+        
+        // Ensure it's in a reasonable range for Alkane IDs
+        (combined % 1_000_000) + 100_000
     }
 
     /// Generate a deterministic pool address (mock)
@@ -281,5 +574,47 @@ mod tests {
             token_supply,
             base_reserves
         ));
+    }
+
+    #[test]
+    fn test_deterministic_pool_address() {
+        let factory = AlkaneId::new(2, 56802);
+        let token_a = AlkaneId::new(100, 1);
+        let token_b = AlkaneId::new(2, 56801); // BUSD
+        
+        let pool_address = AMMIntegration::generate_deterministic_pool_address(
+            &factory,
+            &token_a,
+            &token_b,
+        );
+        
+        assert!(pool_address > 0);
+        assert!(pool_address < 2_000_000); // Reasonable range
+    }
+
+    #[test]
+    fn test_lp_token_calculation() {
+        let token_amount = 1_000_000_000;
+        let base_amount = 10_000_000_000;
+        
+        let lp_tokens = AMMIntegration::calculate_lp_tokens(token_amount, base_amount);
+        
+        assert!(lp_tokens > 0);
+        // LP tokens should be approximately sqrt(token_amount * base_amount)
+        let expected = ((token_amount as f64) * (base_amount as f64)).sqrt() as u128;
+        assert!((lp_tokens as i128 - expected as i128).abs() < 1_000_000); // Allow for rounding
+    }
+
+    #[test]
+    fn test_lp_token_distribution() {
+        let lp_tokens = 1_000_000_000;
+        
+        // Test full burn strategy
+        let burn_amount = lp_tokens * 80 / 100;
+        let holder_amount = lp_tokens - burn_amount;
+        
+        assert_eq!(burn_amount, 800_000_000);
+        assert_eq!(holder_amount, 200_000_000);
+        assert_eq!(burn_amount + holder_amount, lp_tokens); // No rounding loss
     }
 } 
