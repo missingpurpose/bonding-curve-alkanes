@@ -1,4 +1,4 @@
-OUT_DIR = Some(/Volumes/btc-node/everything-alkanes/external-contracts/free-mint-master copy/target/wasm32-unknown-unknown/debug/build/secp256k1-sys-7a34fe2d016cc2ee/out)
+OUT_DIR = Some(/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system/target/wasm32-unknown-unknown/debug/build/secp256k1-sys-7a34fe2d016cc2ee/out)
 OPT_LEVEL = Some(0)
 TARGET = Some(wasm32-unknown-unknown)
 HOST = Some(aarch64-apple-darwin)
@@ -24,7 +24,7 @@ CFLAGS_wasm32_unknown_unknown = None
 cargo:rerun-if-env-changed=CFLAGS_wasm32-unknown-unknown
 CFLAGS_wasm32-unknown-unknown = None
 CARGO_ENCODED_RUSTFLAGS = Some()
-OUT_DIR = Some(/Volumes/btc-node/everything-alkanes/external-contracts/free-mint-master copy/target/wasm32-unknown-unknown/debug/build/secp256k1-sys-7a34fe2d016cc2ee/out)
+OUT_DIR = Some(/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system/target/wasm32-unknown-unknown/debug/build/secp256k1-sys-7a34fe2d016cc2ee/out)
 cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
 cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
 CRATE_CC_NO_DEFAULTS = None
@@ -38,7 +38,7 @@ cargo:rerun-if-env-changed=CFLAGS_wasm32_unknown_unknown
 CFLAGS_wasm32_unknown_unknown = None
 cargo:rerun-if-env-changed=CFLAGS_wasm32-unknown-unknown
 CFLAGS_wasm32-unknown-unknown = None
-OUT_DIR = Some(/Volumes/btc-node/everything-alkanes/external-contracts/free-mint-master copy/target/wasm32-unknown-unknown/debug/build/secp256k1-sys-7a34fe2d016cc2ee/out)
+OUT_DIR = Some(/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system/target/wasm32-unknown-unknown/debug/build/secp256k1-sys-7a34fe2d016cc2ee/out)
 cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
 cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
 CRATE_CC_NO_DEFAULTS = None
@@ -69,4 +69,4 @@ ARFLAGS_wasm32_unknown_unknown = None
 cargo:rerun-if-env-changed=ARFLAGS_wasm32-unknown-unknown
 ARFLAGS_wasm32-unknown-unknown = None
 cargo:rustc-link-lib=static=secp256k1
-cargo:rustc-link-search=native=/Volumes/btc-node/everything-alkanes/external-contracts/free-mint-master copy/target/wasm32-unknown-unknown/debug/build/secp256k1-sys-7a34fe2d016cc2ee/out
+cargo:rustc-link-search=native=/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system/target/wasm32-unknown-unknown/debug/build/secp256k1-sys-7a34fe2d016cc2ee/out

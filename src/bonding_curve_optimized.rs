@@ -834,11 +834,5 @@ impl OptimizedBondingCurve {
     }
 }
 
-impl AlkaneResponder for OptimizedBondingCurve {}
-
-// Use the MessageDispatch macro for opcode handling
-declare_alkane! {
-    impl AlkaneResponder for OptimizedBondingCurve {
-        type Message = OptimizedBondingCurveMessage;
-    }
-} 
+// Remove the AlkaneResponder implementation and declare_alkane! macro
+// These will be handled by the main contract in lib.rs 

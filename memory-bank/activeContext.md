@@ -1,57 +1,45 @@
 # Active Context
 
 ## Current Focus
-The current focus is on implementing a secure and feature-complete free mint alkane contract that follows modern best practices. The implementation is based on the requirements specified in the project brief and aims to address security vulnerabilities present in previous implementations.
+Implement a production-ready Alkanes bonding curve token contract with exponential pricing and graduation to Oyl AMM, plus a separate factory contract to enable permissionless token launches.
 
 ## Recent Changes
-- **Major Implementation Update**: Completely refactored the MintableAlkane implementation
-  - Added MessageDispatch derive macro for better opcode handling
-  - Implemented proper initialization guard via observe_initialization()
-  - Added transaction hash validation to enforce one mint per transaction
-  - Improved error handling with more descriptive messages
-  - Enhanced code structure and documentation
-- Added serde and serde_json dependencies for transaction hash tracking
-- Updated Cargo.toml with better project metadata
+- Core bonding curve token contract compiles to 323KB WASM
+- True exponential pricing with fixed-point math and overflow protection
+- AMM graduation module scaffolded (mocked)
+- Factory contract logic written and moved toward separate crate
+- Documentation updated with multi-contract architecture and roadmap
 
 ## Active Decisions
 
 ### Security Implementation
-- Using `observe_initialization()` to guard against multiple initializations
-- Implementing transaction-based mint limits with hash tracking to prevent abuse
-- Adding cap validation to enforce supply constraints
-- Using overflow checks for all numeric operations with descriptive error messages
+- CEI pattern for all state changes
+- Overflow-checked arithmetic throughout
+- Graduation safeguards and thresholds
 
 ### Storage Design
-- Using dedicated storage pointers for each contract property
-- Implementing efficient string encoding/decoding for name and symbol
-- Storing transaction hashes in a HashSet for mint tracking
-- Using serde_json for serialization/deserialization of transaction hash sets
+- Dedicated storage pointers for names, symbols, params, reserves, graduation state
+- JSON-serialized parameters struct for curve config
 
 ### Interface Design
-- Using MessageDispatch derive macro for cleaner opcode handling
-- Following the owned token opcode format for consistency
-- Adding free mint specific opcodes for additional functionality
-- Implementing view functions as no-state-change operations
-- Adding comprehensive documentation for all functions
+- MessageDispatch macro for opcode handling
+- Separate factory and token contracts (single contract per WASM)
+- AMM integration behind dedicated module
 
 ## Next Steps
 
 ### Implementation Tasks
-1. **Testing**
-   - Create comprehensive test suite for all operations
-   - Test edge cases for mint limits and cap enforcement
-   - Verify compatibility with existing systems
-   - Test transaction hash validation
-
-2. **Performance Optimization**
-   - Review transaction hash storage for efficiency
-   - Consider alternative data structures for large-scale usage
-   - Optimize serialization/deserialization operations
-
-3. **Documentation**
-   - Create usage examples for contract interaction
-   - Document security considerations for users
-   - Add deployment instructions
+1. **Factory Crate**
+   - Create standalone `bonding-curve-factory` crate
+   - Wire token deployment and registry
+2. **Oyl Integration**
+   - Replace mock functions with Oyl SDK calls
+   - Implement pool creation and liquidity migration
+3. **Testing**
+   - Unit tests for buy/sell/quotes
+   - Integration tests for graduation and factory flow
+4. **Docs**
+   - Keep roadmap and deployment guides updated
 
 ### Open Questions
 - Should we implement a more sophisticated transaction tracking system for high-volume usage?

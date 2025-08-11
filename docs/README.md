@@ -6,7 +6,7 @@
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/missingpurpose/bonding-curve-alkanes)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Alkanes](https://img.shields.io/badge/alkanes-v1.2.1-orange)](https://alkanes.build)
-[![WASM](https://img.shields.io/badge/WASM-422KB-purple)](target/wasm32-unknown-unknown/release/bonding_curve_system.wasm)
+[![WASM](https://img.shields.io/badge/WASM-323KB-purple)](target/wasm32-unknown-unknown/release/bonding_curve_system.wasm)
 
 ## 🎯 Overview
 
@@ -14,7 +14,7 @@ The Alkanes Bonding Curve System enables **permissionless token launches** with 
 
 ### ✨ Key Features
 
-- **🏭 Factory Pattern**: Deploy new bonding curves with one transaction
+- **🏭 Factory Pattern (separate crate)**: Deploy new bonding curves with one transaction
 - **📈 Dynamic Pricing**: Exponential bonding curve with configurable parameters
 - **💰 Multi-Currency**: Support for BUSD and frBTC base pairs
 - **🎓 Auto-Graduation**: Seamless transition to Oyl AMM pools
@@ -30,18 +30,31 @@ The Alkanes Bonding Curve System enables **permissionless token launches** with 
 - Alkanes development environment
 - Git and basic command line tools
 
-### Build the Contract
+### Build the Contract (Token)
 
 ```bash
 # Clone the repository
 git clone https://github.com/missingpurpose/bonding-curve-alkanes.git
 cd bonding-curve-alkanes
 
-# Build for WASM
+# Build the bonding curve token contract for WASM
 cargo build --target wasm32-unknown-unknown --release
 
 # Your WASM binary is ready at:
-# target/wasm32-unknown-unknown/release/bonding_curve_system.wasm (422KB)
+# target/wasm32-unknown-unknown/release/bonding_curve_system.wasm (323KB)
+
+### Build the Factory (separate crate)
+
+Create a new crate for the factory contract (Alkanes supports one contract per WASM module):
+
+```bash
+# From the monorepo root (recommended)
+cargo new --lib bonding-curve-factory
+cd bonding-curve-factory
+# Move/adapt factory logic here, then build:
+cargo build --target wasm32-unknown-unknown --release
+# Produces: target/wasm32-unknown-unknown/release/factory.wasm
+```
 ```
 
 ### Deploy a New Token
@@ -120,13 +133,21 @@ const tokenParams = {
 - **Security Patterns**: CEI pattern, access controls, safe arithmetic
 - **Storage Management**: Efficient state handling using proven patterns
 - **AMM Integration Framework**: Ready for Oyl AMM connection
-- **WASM Build System**: Optimized 422KB binary generation
+- **WASM Build System**: Optimized 323KB binary generation
 
 ### 🔄 In Progress
 
-- **Real AMM Integration**: Connecting to actual Oyl AMM contracts
+- **Factory Contract (separate crate)**: Standalone factory deployment
+- **Real Oyl AMM Integration**: Connecting to actual Oyl AMM contracts
 - **Frontend Development**: React UI for token launch and trading
 - **Testing Suite**: Comprehensive integration tests
+
+### 📦 Repositories & Paths
+
+- Local token contract path: `/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system/`
+- Local WASM output: `/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system/target/wasm32-unknown-unknown/release/bonding_curve_system.wasm`
+- GitHub repository: `https://github.com/missingpurpose/bonding-curve-alkanes`
+- Factory contract: create as separate crate (see above)
 
 ### 📋 Next Steps
 

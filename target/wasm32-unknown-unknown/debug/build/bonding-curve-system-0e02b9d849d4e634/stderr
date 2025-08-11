@@ -1,0 +1,49 @@
+   Compiling bonding-curve-system v0.1.0 (/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system)
+error[E0412]: cannot find type `Factory` in this scope
+   --> src/factory.rs:277:10
+    |
+277 | #[derive(MessageDispatch)]
+    |          ^^^^^^^^^^^^^^^ not found in this scope
+    |
+    = note: this error originates in the derive macro `MessageDispatch` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0412]: cannot find type `BondingCurve` in this scope
+   --> src/lib.rs:446:10
+    |
+446 | #[derive(MessageDispatch)]
+    |          ^^^^^^^^^^^^^^^ not found in this scope
+    |
+    = note: this error originates in the derive macro `MessageDispatch` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused imports: `context::Context` and `gz`
+  --> src/lib.rs:20:5
+   |
+20 |     context::Context,
+   |     ^^^^^^^^^^^^^^^^
+21 |     response::CallResponse,
+22 |     gz,
+   |     ^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `context::Context`
+  --> src/factory.rs:13:5
+   |
+13 |     context::Context,
+   |     ^^^^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+   --> src/lib.rs:350:13
+    |
+350 |         let mut response = CallResponse::default();
+    |             ----^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+For more information about this error, try `rustc --explain E0412`.
+warning: `bonding-curve-system` (lib) generated 3 warnings
+error: could not compile `bonding-curve-system` (lib) due to 2 previous errors; 3 warnings emitted
+WASM file not found at: "/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system/target/alkanes/wasm32-unknown-unknown/release/bonding_curve_system.wasm"
+This is expected during initial development. Skipping build script.

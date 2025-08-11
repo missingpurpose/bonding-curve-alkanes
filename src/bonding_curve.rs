@@ -13,12 +13,17 @@ use anyhow::{anyhow, Result};
 use metashrew_support::index_pointer::KeyValuePointer;
 use std::sync::Arc;
 
+/// Fixed-point precision constants
+const PRECISION: u128 = 1_000_000_000; // 9 decimal places for precision
+const BASIS_POINTS: u128 = 10_000;     // 100% = 10,000 basis points
+const MAX_PRICE: u128 = u128::MAX / 1_000_000; // Prevent overflow in calculations
+
 /// Bonding curve state management
 pub struct CurveCalculator;
 
 impl CurveCalculator {
     /// Calculate the buy price for a given number of tokens
-    /// Uses exponential bonding curve: price = base_price * (1 + growth_rate/10000)^supply
+    /// Uses TRUE exponential bonding curve: price = base_price * (1 + growth_rate/10000)^supply
     pub fn calculate_buy_price(
         current_supply: u128,
         tokens_to_buy: u128,
@@ -34,22 +39,41 @@ impl CurveCalculator {
             return Err(anyhow!("Purchase would exceed maximum supply"));
         }
 
-        // Calculate integral under exponential curve
-        // For exponential curve f(x) = base * (1 + rate)^x
-        // Integral from a to b is: base * ((1 + rate)^b - (1 + rate)^a) / ln(1 + rate)
-        // We approximate this using trapezoidal rule for precision
+        // For small amounts or early supply, use precise token-by-token calculation
+        if tokens_to_buy <= 100 || current_supply < 1000 {
+            return Self::calculate_precise_buy_cost(current_supply, tokens_to_buy, params);
+        }
+
+        // For larger amounts, use optimized integral approximation
+        let start_price = Self::price_at_supply_fixed_point(current_supply, params)?;
+        let end_price = Self::price_at_supply_fixed_point(new_supply - 1, params)?;
         
-        let start_price = Self::price_at_supply(current_supply, params)?;
-        let end_price = Self::price_at_supply(new_supply, params)?;
-        
-        // Trapezoidal rule: (start_price + end_price) * quantity / 2
-        let average_price = overflow_error(start_price.checked_add(end_price))? / 2;
+        // Trapezoidal rule for integral approximation
+        let average_price = (start_price + end_price) / 2;
         let total_cost = overflow_error(average_price.checked_mul(tokens_to_buy))?;
         
         Ok(total_cost)
     }
 
-    /// Calculate the sell price for a given number of tokens
+    /// Precise calculation for small token amounts using summation
+    fn calculate_precise_buy_cost(
+        current_supply: u128,
+        tokens_to_buy: u128,
+        params: &CurveParams,
+    ) -> Result<u128> {
+        let mut total_cost = 0u128;
+        
+        // Calculate price for each token individually for maximum precision
+        for i in 0..tokens_to_buy {
+            let supply_at_token = current_supply + i;
+            let price = Self::price_at_supply_fixed_point(supply_at_token, params)?;
+            total_cost = overflow_error(total_cost.checked_add(price))?;
+        }
+        
+        Ok(total_cost)
+    }
+
+    /// Calculate the sell price for a given number of tokens with 2% discount
     pub fn calculate_sell_price(
         current_supply: u128,
         tokens_to_sell: u128,
@@ -65,62 +89,106 @@ impl CurveCalculator {
 
         let new_supply = current_supply - tokens_to_sell;
         
-        let start_price = Self::price_at_supply(new_supply, params)?;
-        let end_price = Self::price_at_supply(current_supply, params)?;
+        // Calculate theoretical return value
+        let theoretical_return = if tokens_to_sell <= 100 || new_supply < 1000 {
+            Self::calculate_precise_sell_return(new_supply, tokens_to_sell, params)?
+        } else {
+            // Use integral approximation for large amounts
+            let start_price = Self::price_at_supply_fixed_point(new_supply, params)?;
+            let end_price = Self::price_at_supply_fixed_point(current_supply - 1, params)?;
+            let average_price = (start_price + end_price) / 2;
+            overflow_error(average_price.checked_mul(tokens_to_sell))?
+        };
         
-        // Apply small discount for sells (e.g., 1% lower than buy price)
-        let average_price = overflow_error(start_price.checked_add(end_price))? / 2;
-        let discounted_price = overflow_error(average_price.checked_mul(99))? / 100; // 1% discount
-        let total_payout = overflow_error(discounted_price.checked_mul(tokens_to_sell))?;
+        // Apply 2% discount to incentivize holding and provide liquidity buffer
+        let discounted_return = theoretical_return * 98 / 100;
         
-        Ok(total_payout)
+        Ok(discounted_return)
     }
 
-    /// Calculate the price at a specific supply level
+    /// Precise calculation for small sell amounts
+    fn calculate_precise_sell_return(
+        new_supply: u128,
+        tokens_to_sell: u128,
+        params: &CurveParams,
+    ) -> Result<u128> {
+        let mut total_return = 0u128;
+        
+        for i in 0..tokens_to_sell {
+            let supply_at_token = new_supply + i;
+            let price = Self::price_at_supply_fixed_point(supply_at_token, params)?;
+            total_return = overflow_error(total_return.checked_add(price))?;
+        }
+        
+        Ok(total_return)
+    }
+
+    /// Calculate the price at a specific supply level using fixed-point math
     pub fn price_at_supply(supply: u128, params: &CurveParams) -> Result<u128> {
+        Self::price_at_supply_fixed_point(supply, params)
+    }
+
+    /// Calculate price using high-precision fixed-point exponential
+    fn price_at_supply_fixed_point(supply: u128, params: &CurveParams) -> Result<u128> {
         if supply == 0 {
             return Ok(params.base_price);
         }
 
-        // Use fixed-point arithmetic to compute (1 + growth_rate/10000)^supply
-        // We'll use a simplified approximation for large supplies
-        let growth_factor = 10000 + params.growth_rate;
-        let price = Self::power_approximation(params.base_price, growth_factor, supply, 10000)?;
+        // Convert growth rate from basis points to fixed-point multiplier
+        // e.g., 150 bps = 1.015 = (10000 + 150) / 10000
+        let growth_multiplier = BASIS_POINTS + params.growth_rate;
         
-        Ok(price)
+        // Use optimized binary exponentiation for (growth_multiplier/BASIS_POINTS)^supply
+        let price_multiplier = Self::fixed_point_power(
+            growth_multiplier,
+            supply,
+            BASIS_POINTS,
+        )?;
+        
+        // Apply multiplier to base price with precision scaling
+        let price = overflow_error(
+            params.base_price
+                .checked_mul(price_multiplier)
+                .ok_or_else(|| anyhow!("Overflow in price calculation"))?
+                .checked_div(PRECISION)
+        )?;
+        
+        // Cap at maximum to prevent overflow in subsequent calculations
+        Ok(price.min(MAX_PRICE))
     }
 
-    /// Approximate (base * (numerator/denominator)^exponent) using repeated multiplication
-    /// with overflow protection and precision management
-    fn power_approximation(
+    /// Optimized fixed-point power calculation using binary exponentiation
+    /// Returns (base/denominator)^exponent * PRECISION for high precision
+    fn fixed_point_power(
         base: u128,
-        numerator: u128,
         exponent: u128,
         denominator: u128,
     ) -> Result<u128> {
         if exponent == 0 {
-            return Ok(base);
+            return Ok(PRECISION);
         }
 
-        let mut result = base;
+        let mut result = PRECISION;
+        let mut base_power = base * PRECISION / denominator;
         let mut exp = exponent;
-        
-        // Use binary exponentiation for efficiency
-        while exp > 0 {
-            if exp % 10 == 0 {
-                // Every 10 tokens, apply the growth factor once to avoid overflow
-                result = overflow_error(result.checked_mul(numerator))? / denominator;
-                exp -= 10;
-            } else {
-                // For remaining tokens, apply fractional growth
-                let fractional_growth = denominator + (numerator - denominator) / 10;
-                result = overflow_error(result.checked_mul(fractional_growth))? / denominator;
-                exp -= 1;
-            }
 
-            // Prevent excessive price growth
-            if result > u128::MAX / 1000 {
-                return Ok(u128::MAX / 1000); // Cap at reasonable maximum
+        // Binary exponentiation: O(log n) instead of O(n)
+        while exp > 0 {
+            if exp & 1 == 1 {
+                // If bit is set, multiply result by current base power
+                result = overflow_error(result.checked_mul(base_power))? / PRECISION;
+            }
+            
+            if exp > 1 {
+                // Square the base power for next bit
+                base_power = overflow_error(base_power.checked_mul(base_power))? / PRECISION;
+            }
+            
+            exp >>= 1;
+            
+            // Prevent overflow by capping intermediate results
+            if result > MAX_PRICE || base_power > MAX_PRICE {
+                return Ok(MAX_PRICE);
             }
         }
 
@@ -133,22 +201,55 @@ impl CurveCalculator {
         base_reserves: u128,
         params: &CurveParams,
     ) -> bool {
-        // Calculate current market cap
-        let current_price = Self::price_at_supply(current_supply, params).unwrap_or(0);
-        let market_cap = current_supply.saturating_mul(current_price);
+        // Calculate current market cap with precision scaling
+        let current_price = Self::price_at_supply_fixed_point(current_supply, params).unwrap_or(0);
+        let market_cap = current_supply.saturating_mul(current_price) / PRECISION;
         
-        // Check if market cap exceeds threshold
+        // Primary criteria: Market cap exceeds threshold
         if market_cap >= params.graduation_threshold {
             return true;
         }
 
-        // Alternative criteria: minimum liquidity reserves
-        let min_reserves = params.graduation_threshold / 2; // 50,000 BUSD equivalent
+        // Secondary criteria: Sufficient liquidity (50% of threshold)
+        let min_reserves = params.graduation_threshold / 2;
         if base_reserves >= min_reserves {
             return true;
         }
 
+        // Tertiary criteria: High trading volume (inferred from reserves relative to supply)
+        // If reserves are > 30% of theoretical market cap, indicates strong trading
+        let theoretical_value = market_cap * 30 / 100;
+        if base_reserves >= theoretical_value && current_supply >= params.max_supply / 20 {
+            return true;
+        }
+
         false
+    }
+
+    /// Calculate optimal AMM liquidity ratios for graduation
+    pub fn calculate_amm_liquidity(
+        current_supply: u128,
+        base_reserves: u128,
+        params: &CurveParams,
+    ) -> Result<(u128, u128)> {
+        // Use 80% of reserves for liquidity (keep 20% as buffer)
+        let base_liquidity = base_reserves * 80 / 100;
+        
+        // Calculate token amount to match current price ratio
+        let current_price = Self::price_at_supply_fixed_point(current_supply, params)?;
+        
+        // tokens_needed = base_liquidity / current_price (with precision adjustment)
+        let tokens_needed = overflow_error(
+            base_liquidity
+                .checked_mul(PRECISION)
+                .ok_or_else(|| anyhow!("Overflow in AMM liquidity calculation"))?
+                .checked_div(current_price)
+        )?;
+        
+        // Cap at 20% of current supply to maintain scarcity
+        let token_liquidity = tokens_needed.min(current_supply * 20 / 100);
+        
+        Ok((token_liquidity, base_liquidity))
     }
 
     /// Storage pointers for bonding curve state

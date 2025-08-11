@@ -1,0 +1,11 @@
+/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system/alkanes/release/deps/ciborium_ll-4a5d78b8916dc035.d: /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/lib.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/dec.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/enc.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/hdr.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/seg.rs
+
+/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system/alkanes/release/deps/libciborium_ll-4a5d78b8916dc035.rlib: /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/lib.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/dec.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/enc.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/hdr.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/seg.rs
+
+/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system/alkanes/release/deps/libciborium_ll-4a5d78b8916dc035.rmeta: /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/lib.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/dec.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/enc.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/hdr.rs /Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/seg.rs
+
+/Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/lib.rs:
+/Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/dec.rs:
+/Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/enc.rs:
+/Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/hdr.rs:
+/Users/fracker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-ll-0.2.2/src/seg.rs:

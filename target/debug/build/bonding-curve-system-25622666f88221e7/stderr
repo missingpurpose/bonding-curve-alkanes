@@ -1,0 +1,52 @@
+   Compiling bonding-curve-system v0.1.0 (/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system)
+warning: constant `FACTORY_CREATE_POOL` is never used
+  --> src/amm_integration.rs:35:7
+   |
+35 | const FACTORY_CREATE_POOL: u128 = 1;
+   |       ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: constant `FACTORY_GET_POOL` is never used
+  --> src/amm_integration.rs:36:7
+   |
+36 | const FACTORY_GET_POOL: u128 = 2;
+   |       ^^^^^^^^^^^^^^^^
+
+warning: constant `POOL_ADD_LIQUIDITY` is never used
+  --> src/amm_integration.rs:39:7
+   |
+39 | const POOL_ADD_LIQUIDITY: u128 = 1;
+   |       ^^^^^^^^^^^^^^^^^^
+
+warning: constant `POOL_GET_DETAILS` is never used
+  --> src/amm_integration.rs:40:7
+   |
+40 | const POOL_GET_DETAILS: u128 = 2;
+   |       ^^^^^^^^^^^^^^^^
+
+warning: associated function `generate_pool_address` is never used
+   --> src/amm_integration.rs:411:8
+    |
+45  | impl AMMIntegration {
+    | ------------------- associated function in this implementation
+...
+411 |     fn generate_pool_address(
+    |        ^^^^^^^^^^^^^^^^^^^^^
+
+error: symbol `__execute` is already defined
+   --> src/factory.rs:457:1
+    |
+457 | / declare_alkane! {
+458 | |     impl AlkaneResponder for BondingCurveFactory {
+459 | |         type Message = BondingCurveFactoryMessage;
+460 | |     }
+461 | | }
+    | |_^
+    |
+    = note: this error originates in the macro `declare_alkane` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: `bonding-curve-system` (lib) generated 5 warnings
+error: could not compile `bonding-curve-system` (lib) due to 1 previous error; 5 warnings emitted
+WASM file not found at: "/Volumes/btc-node/everything-alkanes/external-contracts/bonding-curve-system/alkanes/wasm32-unknown-unknown/release/bonding_curve_system.wasm"
+This is expected during initial development. Skipping build script.
