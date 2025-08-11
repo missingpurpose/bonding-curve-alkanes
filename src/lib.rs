@@ -19,6 +19,7 @@ use alkanes_support::{
     parcel::AlkaneTransfer,
     response::CallResponse,
     utils::overflow_error,
+    context::Context,
 };
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -155,6 +156,10 @@ impl BondingCurveToken {
         StoragePointer::from_keyword("/amm_pool")
     }
 
+    pub fn factory_pointer(&self) -> StoragePointer {
+        StoragePointer::from_keyword("/factory")
+    }
+
     // Core bonding curve functions
     fn initialize(
         &self,
@@ -168,10 +173,23 @@ impl BondingCurveToken {
         max_supply: u128,
         lp_distribution_strategy: u128,
     ) -> Result<CallResponse> {
+        let context = Context::default();
         // Ensure contract cannot be initialized twice
         self
             .observe_initialization()
             .map_err(|_| anyhow!("already initialized"))?;
+
+        // Store factory address
+        let factory_id = context.caller.clone();
+        let mut factory_bytes = Vec::new();
+        factory_bytes.extend_from_slice(&factory_id.block.to_le_bytes());
+        factory_bytes.extend_from_slice(&factory_id.tx.to_le_bytes());
+        self.factory_pointer().set(Arc::new(factory_bytes));
+
+        // Only allow initialization from factory
+        if factory_id.block == 0 || factory_id.tx == 0 {
+            return Err(anyhow!("Only factory can initialize"));
+        }
 
         // Parameter validation (align with free-mint common checks)
         if base_price == 0 {
@@ -345,7 +363,8 @@ impl BondingCurveToken {
     }
 
     fn graduate(&self) -> Result<CallResponse> {
-        let response = CallResponse::default();
+        let context = Context::default();
+        let mut response = CallResponse::default();
         
         // Check if already graduated
         if self.graduated_pointer().get_value::<u8>() != 0 {
@@ -362,12 +381,33 @@ impl BondingCurveToken {
             return Err(anyhow!("Market cap below graduation threshold"));
         }
         
+        // Create AMM pool using Oyl integration
+        let pool_response = amm_integration::AMMIntegration::graduate_to_amm(
+            &context,
+            current_supply,
+        )?;
+        
+        // Extract pool address from response
+        let pool_address = if pool_response.data.len() == 16 {
+            let mut bytes = [0u8; 16];
+            bytes.copy_from_slice(&pool_response.data);
+            u128::from_le_bytes(bytes)
+        } else {
+            return Err(anyhow!("Invalid pool address response"));
+        };
+        
         // Set graduation state
         self.graduated_pointer().set_value::<u8>(1);
+        self.amm_pool_pointer().set_value::<u128>(pool_address);
         
-        // For now, just set a placeholder AMM pool address
-        // In a real implementation, you would create the AMM pool
-        self.amm_pool_pointer().set_value::<u128>(0x1234); // Placeholder
+        // Notify factory of graduation
+        let factory_bytes = self.factory_pointer().get();
+        let mut cursor = std::io::Cursor::new(factory_bytes.as_ref().to_vec());
+        let factory_id = AlkaneId::parse(&mut cursor)?;
+        response.alkanes.0.push(AlkaneTransfer {
+            id: factory_id,
+            value: pool_address, // Pass AMM pool address as value
+        });
         
         Ok(response)
     }
