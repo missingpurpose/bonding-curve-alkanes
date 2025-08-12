@@ -14,6 +14,7 @@ alkanes-runtime = { git = "https://github.com/kungfuflex/alkanes-rs" }
 metashrew-support = { git = "https://github.com/sandshrewmetaprotocols/metashrew" }
 protorune-support = { git = "https://github.com/kungfuflex/alkanes-rs" }
 ordinals = { git = "https://github.com/kungfuflex/alkanes-rs" }
+oyl-amm = { git = "https://github.com/oylprotocol/oyl-amm", tag = "v1.0.0" }
 anyhow = "1.0.94"
 bitcoin = { version = "0.32.4", features = ["rand"] }
 hex_lit = "0.1.1"

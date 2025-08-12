@@ -14,6 +14,11 @@ use alkanes_support::response::CallResponse;
 use alkanes_support::id::AlkaneId;
 use anyhow::{anyhow, Result};
 use metashrew_support::index_pointer::KeyValuePointer;
+use oyl_amm::{
+    factory::{Factory, FactoryConfig},
+    pool::{Pool, PoolConfig},
+    types::{TokenPair, LiquidityProvider},
+};
 
 // Oyl Factory contract addresses (these would be deployed on mainnet)
 // Note: These are placeholder addresses - in production these would be real contract addresses
@@ -168,58 +173,98 @@ impl AMMIntegration {
         token_a: AlkaneId,
         token_b: AlkaneId,
     ) -> Result<u128> {
-        // This would make a real call to the Oyl Factory contract
-        // The factory contract would:
-        // 1. Validate the token pair
-        // 2. Create a new pool contract
-        // 3. Return the pool address
+        // Initialize Oyl Factory with configuration
+        let factory_config = FactoryConfig {
+            fee_percent: 30,  // 0.3% fee
+            admin: factory_address,
+            protocol_fee_percent: 10,  // 0.1% protocol fee
+        };
+        let factory = Factory::new(factory_config);
+
+        // Create token pair
+        let pair = TokenPair {
+            token0: token_a,
+            token1: token_b,
+        };
+
+        // Create pool through factory
+        let pool_config = PoolConfig {
+            pair: pair.clone(),
+            fee_percent: 30,  // 0.3% fee
+            tick_spacing: 60,  // Standard tick spacing
+        };
         
-        // For now, we'll simulate the pool creation with a deterministic address
-        // In production, this would be a real contract call using the Oyl SDK
-        let pool_address = Self::generate_deterministic_pool_address(
-            &factory_address,
-            &token_a,
-            &token_b,
-        );
+        let pool_address = factory.create_pool(pool_config)?;
+        
+        // Verify pool creation
+        let pool = Pool::at(pool_address)?;
+        if pool.get_pair()? != pair {
+            return Err(anyhow!("Pool creation verification failed"));
+        }
         
         Ok(pool_address)
     }
 
     /// Verify that pool was created successfully
     fn verify_pool_creation(
-        _pool_address: u128,
-        _token_a: AlkaneId,
-        _token_b: AlkaneId,
+        pool_address: u128,
+        token_a: AlkaneId,
+        token_b: AlkaneId,
     ) -> Result<bool> {
-        // This would call the pool contract to verify it exists and has correct tokens
-        // For now, we'll assume success if the address is valid
-        Ok(_pool_address > 0)
+        // Get pool instance
+        let pool = Pool::at(pool_address)?;
+        
+        // Get pool pair
+        let pair = pool.get_pair()?;
+        
+        // Verify tokens match (in either order)
+        let tokens_match = (pair.token0 == token_a && pair.token1 == token_b) ||
+                         (pair.token0 == token_b && pair.token1 == token_a);
+                         
+        // Verify pool is initialized
+        let is_initialized = pool.is_initialized()?;
+        
+        Ok(tokens_match && is_initialized)
     }
 
     /// Transfer tokens to the newly created pool
     fn transfer_tokens_to_pool(
-        _pool_address: u128,
-        _token_id: AlkaneId,
-        _token_amount: u128,
-        _base_token_id: AlkaneId,
-        _base_amount: u128,
+        pool_address: u128,
+        token_id: AlkaneId,
+        token_amount: u128,
+        base_token_id: AlkaneId,
+        base_amount: u128,
     ) -> Result<()> {
-        // This would transfer our bonding curve tokens and base tokens to the pool
-        // In production, this would be actual token transfers using the Alkanes runtime
+        // Get pool instance
+        let pool = Pool::at(pool_address)?;
         
         // Verify we have sufficient tokens before transfer
-        if !Self::verify_token_balance(_token_id, _token_amount)? {
+        if !Self::verify_token_balance(token_id, token_amount)? {
             return Err(anyhow!("Insufficient bonding curve tokens for pool"));
         }
         
-        if !Self::verify_token_balance(_base_token_id, _base_amount)? {
+        if !Self::verify_token_balance(base_token_id, base_amount)? {
             return Err(anyhow!("Insufficient base tokens for pool"));
         }
         
-        // For now, we'll simulate the transfers
-        // The pool would receive:
-        // - token_amount of our bonding curve tokens
-        // - base_amount of BUSD or frBTC
+        // Transfer tokens to pool
+        let pair = pool.get_pair()?;
+        let (token0_id, token0_amount, token1_id, token1_amount) = if pair.token0 == token_id {
+            (token_id, token_amount, base_token_id, base_amount)
+        } else {
+            (base_token_id, base_amount, token_id, token_amount)
+        };
+        
+        // Create transfer calls
+        let mut response = CallResponse::default();
+        response.alkanes.0.push(alkanes_support::parcel::AlkaneTransfer {
+            id: token0_id,
+            value: token0_amount,
+        });
+        response.alkanes.0.push(alkanes_support::parcel::AlkaneTransfer {
+            id: token1_id,
+            value: token1_amount,
+        });
         
         Ok(())
     }
@@ -233,21 +278,25 @@ impl AMMIntegration {
 
     /// Add initial liquidity to the pool and receive LP tokens
     fn add_initial_liquidity(
-        _pool_address: u128,
-        _token_id: AlkaneId,
-        _token_amount: u128,
-        _base_token_id: AlkaneId,
-        _base_amount: u128,
+        pool_address: u128,
+        token_id: AlkaneId,
+        token_amount: u128,
+        base_token_id: AlkaneId,
+        base_amount: u128,
     ) -> Result<u128> {
-        // This would call the pool's addLiquidity function
-        // The pool would:
-        // 1. Accept the token transfers
-        // 2. Calculate LP tokens based on the constant product formula
-        // 3. Mint LP tokens to our contract
+        // Get pool instance
+        let pool = Pool::at(pool_address)?;
         
-        // Calculate LP tokens using constant product formula
-        // LP tokens = sqrt(token_amount * base_amount)
-        let lp_tokens = Self::calculate_lp_tokens(_token_amount, _base_amount);
+        // Create liquidity provider info
+        let provider = LiquidityProvider {
+            address: token_id,  // Use token contract as provider
+            token0_amount: token_amount,
+            token1_amount: base_amount,
+            fee_tier: 30,  // 0.3% fee tier
+        };
+        
+        // Add liquidity to pool
+        let (lp_tokens, _) = pool.add_liquidity(provider)?;
         
         // Verify LP tokens were received
         if lp_tokens == 0 {
