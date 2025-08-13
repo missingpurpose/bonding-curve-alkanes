@@ -566,6 +566,15 @@ impl AMMIntegration {
 mod tests {
     use super::*;
 
+    fn setup_test_context() -> Context {
+        Context {
+            myself: AlkaneId::new(100, 1),  // Our token
+            block_height: 800_000,
+            timestamp: 1_700_000_000,
+            incoming_alkanes: Vec::new(),
+        }
+    }
+
     #[test]
     fn test_pool_ratio_calculation() {
         let params = CurveParams::default();
@@ -582,6 +591,74 @@ mod tests {
     }
 
     #[test]
+    fn test_busd_pool_creation() {
+        let context = setup_test_context();
+        let base_token = BaseToken::BUSD;
+        let token_liquidity = 1_000_000_000;  // 1B tokens
+        let base_liquidity = 10_000_000_000;  // 10B BUSD
+
+        // Create pool
+        let pool_address = AMMIntegration::create_oyl_pool_atomic(
+            &context,
+            &base_token,
+            token_liquidity,
+            base_liquidity,
+        ).unwrap();
+
+        // Verify pool
+        assert!(pool_address > 0);
+        let pool = Pool::at(pool_address).unwrap();
+        let pair = pool.get_pair().unwrap();
+        assert_eq!(pair.token0, context.myself);  // Our token
+        assert_eq!(pair.token1, base_token.alkane_id());  // BUSD
+        assert!(pool.is_initialized().unwrap());
+
+        // Verify liquidity
+        let provider = LiquidityProvider {
+            address: context.myself,
+            token0_amount: token_liquidity,
+            token1_amount: base_liquidity,
+            fee_tier: 30,
+        };
+        let (lp_tokens, _) = pool.add_liquidity(provider).unwrap();
+        assert!(lp_tokens > 0);
+    }
+
+    #[test]
+    fn test_frbtc_pool_creation() {
+        let context = setup_test_context();
+        let base_token = BaseToken::FrBtc;
+        let token_liquidity = 1_000_000_000;  // 1B tokens
+        let base_liquidity = 100_000_000;     // 1 frBTC
+
+        // Create pool
+        let pool_address = AMMIntegration::create_oyl_pool_atomic(
+            &context,
+            &base_token,
+            token_liquidity,
+            base_liquidity,
+        ).unwrap();
+
+        // Verify pool
+        assert!(pool_address > 0);
+        let pool = Pool::at(pool_address).unwrap();
+        let pair = pool.get_pair().unwrap();
+        assert_eq!(pair.token0, context.myself);  // Our token
+        assert_eq!(pair.token1, base_token.alkane_id());  // frBTC
+        assert!(pool.is_initialized().unwrap());
+
+        // Verify liquidity
+        let provider = LiquidityProvider {
+            address: context.myself,
+            token0_amount: token_liquidity,
+            token1_amount: base_liquidity,
+            fee_tier: 30,
+        };
+        let (lp_tokens, _) = pool.add_liquidity(provider).unwrap();
+        assert!(lp_tokens > 0);
+    }
+
+    #[test]
     fn test_liquidity_sufficiency() {
         let params = CurveParams::default();
         
@@ -594,6 +671,86 @@ mod tests {
             10_000_000_000, 
             &params
         ));
+    }
+
+    #[test]
+    fn test_graduation_flow() {
+        let context = setup_test_context();
+        let base_token = BaseToken::BUSD;
+        let token_supply = 1_000_000_000;  // 1B tokens
+        let base_reserves = 10_000_000_000;  // 10B BUSD
+        let params = CurveParams {
+            base_price: 1_000_000,  // 0.01 BUSD
+            growth_rate: 150,       // 1.5%
+            graduation_threshold: 1_000_000_000_000,  // 10k BUSD
+            base_token,
+            max_supply: 10_000_000_000_000,  // 10T tokens
+        };
+
+        // Step 1: Check graduation criteria
+        assert!(AMMIntegration::check_graduation_criteria(
+            token_supply,
+            base_reserves,
+            &params
+        ));
+
+        // Step 2: Graduate to AMM
+        let response = AMMIntegration::graduate_to_amm(
+            &context,
+            token_supply,
+        ).unwrap();
+
+        // Step 3: Verify pool address
+        let pool_address = u128::from_le_bytes(response.data.try_into().unwrap());
+        assert!(pool_address > 0);
+
+        // Step 4: Verify pool state
+        let pool = Pool::at(pool_address).unwrap();
+        assert!(pool.is_initialized().unwrap());
+        let pair = pool.get_pair().unwrap();
+        assert_eq!(pair.token0, context.myself);
+        assert_eq!(pair.token1, base_token.alkane_id());
+
+        // Step 5: Verify LP tokens
+        let lp_tokens = AMMIntegration::get_lp_tokens();
+        assert!(lp_tokens > 0);
+
+        // Step 6: Verify graduation state
+        assert!(CurveCalculator::is_graduated());
+        assert_eq!(AMMIntegration::get_amm_pool_address(), Some(pool_address));
+    }
+
+    #[test]
+    fn test_graduation_strategies() {
+        let context = setup_test_context();
+        let lp_tokens = 1_000_000_000;  // 1B LP tokens
+
+        // Test Full Burn strategy
+        AMMIntegration::distribute_lp_tokens(lp_tokens, &context).unwrap();
+        let burn_amount = lp_tokens * 80 / 100;  // 80%
+        let holder_amount = lp_tokens - burn_amount;  // 20%
+        assert_eq!(burn_amount + holder_amount, lp_tokens);  // No rounding loss
+
+        // Test Community strategy
+        AMMIntegration::distribute_lp_tokens(lp_tokens, &context).unwrap();
+        let community_amount = lp_tokens * 60 / 100;  // 60%
+        let holder_amount = lp_tokens * 20 / 100;     // 20%
+        let creator_amount = lp_tokens - community_amount - holder_amount;  // 20%
+        assert_eq!(community_amount + holder_amount + creator_amount, lp_tokens);
+
+        // Test Creator strategy
+        AMMIntegration::distribute_lp_tokens(lp_tokens, &context).unwrap();
+        let creator_amount = lp_tokens * 40 / 100;    // 40%
+        let holder_amount = lp_tokens * 40 / 100;     // 40%
+        let community_amount = lp_tokens - creator_amount - holder_amount;  // 20%
+        assert_eq!(creator_amount + holder_amount + community_amount, lp_tokens);
+
+        // Test DAO strategy
+        AMMIntegration::distribute_lp_tokens(lp_tokens, &context).unwrap();
+        let dao_amount = lp_tokens * 50 / 100;        // 50%
+        let holder_amount = lp_tokens * 30 / 100;     // 30%
+        let community_amount = lp_tokens - dao_amount - holder_amount;  // 20%
+        assert_eq!(dao_amount + holder_amount + community_amount, lp_tokens);
     }
 
     #[test]
